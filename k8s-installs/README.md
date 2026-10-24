@@ -40,7 +40,7 @@ exactly as the Backstage workload form writes it:
 | **GPU type** | karpenter-nodepool.&lt;gpu&gt;, nvidia-gpu-operator |
 | **Postgres / Redis / Kafka** | cloudnative-pg + cloudnative-pg-cluster.&lt;name&gt; / valkey-redis + valkey-redis-cluster.&lt;name&gt; / strimzi-kafka + strimzi-kafka-cluster.&lt;name&gt; (sandbox; stage and above use infrastructure's managed data-*) |
 
-The sets are Backstage catalog data (`backstage/phoenix/catalog/`); so are the
+The sets are Backstage catalog data (the Backstage repository's `phoenix/catalog/`); so are the
 components' prerequisites, which give the install order (teardown is the
 reverse):
 
@@ -127,6 +127,6 @@ work (see the design's Deferred section).
    `locals.defaults` (released at least two weeks earlier).
 2. `tests/<component>.tftest.hcl` with `plans_with_defaults` and
    `disabled_plans_nothing` at least (mock aws, helm, kubernetes).
-3. A `component-<name>` entity in `backstage/phoenix/catalog/components.yaml`
+3. A `component-<name>` entity in the Backstage repository's `phoenix/catalog/components.yaml`
    with its prerequisites, and the component added to every option that needs
    it (options list their full set).

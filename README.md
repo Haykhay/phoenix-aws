@@ -12,7 +12,7 @@ workflow runs plain Terraform for each, in order.
 |---|---|---|
 | [`infrastructure/`](infrastructure/README.md) | Layer 2 — the AWS side of an environment: VPCs (IPAM), EKS, data services, DNS, observability storage, ECR pull-through | 9 resource sets |
 | [`k8s-installs/`](k8s-installs/README.md) | Layer 3 — what runs inside each cluster: baseline, gateway, delivery, databases, GPUs, vLLM, Langfuse | 25 components |
-| [`backstage/`](backstage/README.md) | The front door: the environment and workload forms, the catalog of what's on offer, Entra sign-in (toggle) | runs locally in Docker |
+| Backstage (separate: it fronts every cloud in the series) | The front door: the environment and workload forms, the catalog of what's on offer, Entra sign-in (toggle) | runs locally in Docker |
 | [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml) | The one pipeline for both layers | |
 
 ## How a request flows
@@ -59,5 +59,5 @@ cd infrastructure/modules/<resource-set>   # or k8s-installs/modules/<component>
 terraform init -backend=false && terraform test
 ```
 
-Backstage: `cd backstage && docker compose up -d --build`, then
-http://localhost:7007 (guest sign-in).
+Backstage lives in its own repository, next to the cloud repositories, because
+it fronts all of them.
