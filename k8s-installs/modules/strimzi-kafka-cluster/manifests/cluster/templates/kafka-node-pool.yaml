@@ -1,0 +1,99 @@
+{{- if eq .Values.topology "dual-role" }}
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: {{ .Values.clusterName }}-pool
+  namespace: {{ .Release.Namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.clusterName }}
+spec:
+  replicas: {{ .Values.instances }}
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: {{ .Values.storageSize }}
+        deleteClaim: false
+        {{- with .Values.storageClass }}
+        class: {{ . }}
+        {{- end }}
+  {{- if or .Values.nodeSelector .Values.tolerations .Values.podDisruptionBudget }}
+  template:
+    pod:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.podDisruptionBudget }}
+    podDisruptionBudget:
+      maxUnavailable: {{ .max_unavailable }}
+    {{- end }}
+  {{- end }}
+
+{{- else }}
+{{- range $role, $spec := (dict "controller" .Values.controllers "broker" .Values.brokers) }}
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: {{ if eq $role "controller" }}controllers{{ else }}brokers{{ end }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    strimzi.io/cluster: {{ $.Values.clusterName }}
+spec:
+  replicas: {{ $spec.replicas }}
+  roles:
+    - {{ $role }}
+  jvmOptions:
+    {{- toYaml $spec.jvm_options | nindent 4 }}
+  resources:
+    {{- toYaml $spec.resources | nindent 4 }}
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: {{ $spec.storage_size }}
+        deleteClaim: false
+        kraftMetadata: shared
+        {{- with $.Values.storageClass }}
+        class: {{ . }}
+        {{- end }}
+  {{- if or $.Values.nodeSelector $.Values.tolerations $.Values.scheduling.topology_spread_constraints $.Values.podDisruptionBudget }}
+  template:
+    pod:
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.scheduling.topology_spread_constraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        - maxSkew: {{ .max_skew }}
+          topologyKey: {{ .topology_key }}
+          whenUnsatisfiable: {{ .when_unsatisfiable }}
+          labelSelector:
+            matchLabels:
+              strimzi.io/cluster: {{ $.Values.clusterName }}
+              strimzi.io/pool-name: {{ if eq $role "controller" }}controllers{{ else }}brokers{{ end }}
+        {{- end }}
+      {{- end }}
+    {{- with $.Values.podDisruptionBudget }}
+    podDisruptionBudget:
+      maxUnavailable: {{ .max_unavailable }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

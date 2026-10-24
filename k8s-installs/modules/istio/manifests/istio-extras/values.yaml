@@ -1,0 +1,14 @@
+certs:
+  publicZoneName: ""
+  internalZoneName: ""
+  publicSecretName: "wildcard-istio-public-tls"
+  internalSecretName: "wildcard-istio-internal-tls"
+  issuerName: "letsencrypt-prod"
+
+gateways:
+  internal:
+    enabled: true
+    serviceAnnotations: {}
+  external:
+    enabled: false
+    serviceAnnotations: {}

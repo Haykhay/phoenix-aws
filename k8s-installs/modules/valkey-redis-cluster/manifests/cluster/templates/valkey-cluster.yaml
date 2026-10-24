@@ -1,0 +1,23 @@
+apiVersion: valkey.io/v1alpha1
+kind: ValkeyCluster
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  shards: {{ .Values.shards }}
+  replicas: {{ .Values.replicas }}
+  persistence:
+    size: {{ .Values.storageSize }}
+  users:
+    - name: default
+      passwordSecret:
+        name: {{ .Values.clusterName }}-default
+        keys: [password]
+      permissions: "+@all ~* &*"
+    {{- range .Values.users }}
+    - name: {{ .name | replace "_" "-" }}
+      passwordSecret:
+        name: {{ $.Values.clusterName }}-{{ .name | replace "_" "-" }}
+        keys: [password]
+      permissions: "{{ .permissions }}"
+    {{- end }}

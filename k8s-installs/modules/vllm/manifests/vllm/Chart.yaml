@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vllm
+description: One vLLM model server, its Hugging Face token and an HTTPRoute to its InferencePool
+type: application
+version: 0.1.0

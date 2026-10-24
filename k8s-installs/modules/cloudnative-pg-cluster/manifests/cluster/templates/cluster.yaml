@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ .Values.instances }}
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: {{ .Values.clusterName }}-superuser
+  bootstrap:
+    initdb: {}
+  managed:
+    roles:
+      {{- range .Values.databases }}
+      - name: {{ .role }}
+        login: true
+        passwordSecret:
+          name: {{ $.Values.clusterName }}-{{ .name | replace "_" "-" }}
+      {{- end }}
+    {{- if .Values.nlb.enabled }}
+    services:
+      additional:
+        - selectorType: rw
+          serviceTemplate:
+            metadata:
+              name: {{ .Values.clusterName }}-nlb-rw
+              annotations:
+                service.beta.kubernetes.io/aws-load-balancer-type: "external"
+                service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+                service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+                external-dns.alpha.kubernetes.io/hostname: {{ .Values.nlb.hostname | quote }}
+            spec:
+              type: LoadBalancer
+    {{- end }}
+  storage:
+    size: {{ .Values.storageSize }}

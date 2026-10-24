@@ -1,0 +1,71 @@
+{{- if .Values.environmentImagePolicy.enabled }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-environment-images
+  annotations:
+    policies.kyverno.io/title: Require Environment Images
+    policies.kyverno.io/category: Image Governance
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: {{ .Values.policyMode | quote }}
+  background: true
+  rules:
+    - name: containers-use-environment-images
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+{{ toYaml .Values.environmentImagePolicy.excludedNamespaces | indent 16 }}
+      validate:
+        message: "Internal application images must use an approved image for the {{ .Values.environmentName }} environment."
+        foreach:
+          - list: "request.object.spec.containers || `[]`"
+            preconditions:
+              all:
+                - key: {{ "{{ element.image }}" | quote }}
+                  operator: AnyIn
+                  value:
+{{ toYaml .Values.environmentImagePolicy.managedImagePatterns | indent 20 }}
+            deny:
+              conditions:
+                all:
+                  - key: {{ "{{ element.image }}" | quote }}
+                    operator: AnyNotIn
+                    value:
+{{ toYaml .Values.environmentImagePolicy.allowedImagePatterns | indent 22 }}
+          - list: "request.object.spec.initContainers || `[]`"
+            preconditions:
+              all:
+                - key: {{ "{{ element.image }}" | quote }}
+                  operator: AnyIn
+                  value:
+{{ toYaml .Values.environmentImagePolicy.managedImagePatterns | indent 20 }}
+            deny:
+              conditions:
+                all:
+                  - key: {{ "{{ element.image }}" | quote }}
+                    operator: AnyNotIn
+                    value:
+{{ toYaml .Values.environmentImagePolicy.allowedImagePatterns | indent 22 }}
+          - list: "request.object.spec.ephemeralContainers || `[]`"
+            preconditions:
+              all:
+                - key: {{ "{{ element.image }}" | quote }}
+                  operator: AnyIn
+                  value:
+{{ toYaml .Values.environmentImagePolicy.managedImagePatterns | indent 20 }}
+            deny:
+              conditions:
+                all:
+                  - key: {{ "{{ element.image }}" | quote }}
+                    operator: AnyNotIn
+                    value:
+{{ toYaml .Values.environmentImagePolicy.allowedImagePatterns | indent 22 }}
+{{- end }}

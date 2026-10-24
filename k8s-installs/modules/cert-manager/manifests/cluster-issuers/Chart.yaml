@@ -1,0 +1,4 @@
+apiVersion: v2
+name: cluster-issuers
+description: ClusterIssuer resources for cert-manager ACME DNS-01 via Route53
+version: 0.1.2

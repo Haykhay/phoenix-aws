@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argocd-ecr-credentials
+description: ESO ECRAuthorizationToken + ExternalSecret for Argo CD ECR OCI Helm auth
+type: application
+version: 0.1.0

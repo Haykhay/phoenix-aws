@@ -1,0 +1,5 @@
+apiVersion: v2
+name: strimzi-kafka-cluster
+description: Strimzi Kafka Cluster with SCRAM-SHA-512 auth and ESO-managed user secrets
+type: application
+version: 0.1.0

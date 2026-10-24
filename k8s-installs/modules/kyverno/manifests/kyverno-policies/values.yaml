@@ -1,0 +1,12 @@
+environmentName: ""
+policyMode: Audit
+
+environmentImagePolicy:
+  enabled: true
+  managedImagePatterns: []
+  allowedImagePatterns: []
+  excludedNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - kyverno

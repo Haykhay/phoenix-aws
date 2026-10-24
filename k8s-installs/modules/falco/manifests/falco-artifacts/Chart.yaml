@@ -1,0 +1,5 @@
+apiVersion: v2
+name: falco-artifacts
+description: Falco artifact CRs — plugins, rulesfile, and metacollector component
+type: application
+version: 0.1.0

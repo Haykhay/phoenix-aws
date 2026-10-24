@@ -1,0 +1,5 @@
+apiVersion: v2
+name: istio-extras
+description: cert-manager wildcard certs and Gateway API Gateways for Istio
+type: application
+version: 0.1.0

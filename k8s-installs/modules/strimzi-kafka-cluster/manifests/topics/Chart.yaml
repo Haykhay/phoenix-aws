@@ -1,0 +1,5 @@
+apiVersion: v2
+name: strimzi-kafka-cluster-topics
+description: KafkaTopic declarations for a strimzi-kafka-cluster instance
+type: application
+version: 0.1.0

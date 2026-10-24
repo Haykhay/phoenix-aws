@@ -1,0 +1,5 @@
+apiVersion: v2
+name: strimzi-kafka-cluster-users
+description: KafkaUser and ESO-managed credential Secrets for a strimzi-kafka-cluster instance
+type: application
+version: 0.1.0

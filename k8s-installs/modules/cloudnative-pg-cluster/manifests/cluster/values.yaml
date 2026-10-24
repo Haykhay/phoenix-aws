@@ -1,0 +1,8 @@
+clusterName: ""
+superuserSmSecretName: ""
+instances: 1
+storageSize: 10Gi
+databases: []
+nlb:
+  enabled: false
+  hostname: ""

@@ -1,0 +1,17 @@
+organisation: acme
+group: vision
+environment: sandbox
+
+tier: sandbox
+region: eu-west-1
+cluster: "1"
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: vision
+  Reason: test
+  LongLive: false
+spec: { enabled: false, instance_families: [g6] }

@@ -1,0 +1,29 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: {{ .Values.name }}
+spec:
+  role: {{ .Values.nodeClass.role | quote }}
+  amiSelectorTerms:
+    - alias: {{ .Values.nodeClass.amiAlias | quote }}
+  subnetSelectorTerms:
+{{- range .Values.nodeClass.subnetIds }}
+    - id: {{ . | quote }}
+{{- end }}
+  securityGroupSelectorTerms:
+{{- range .Values.nodeClass.securityGroupIds }}
+    - id: {{ . | quote }}
+{{- end }}
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: {{ .Values.nodeClass.volumeSize }}
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+  metadataOptions:
+    httpTokens: required
+  tags:
+{{- range $k, $v := .Values.nodeClass.tags }}
+    {{ $k | quote }}: {{ $v | quote }}
+{{- end }}

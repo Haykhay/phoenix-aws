@@ -1,0 +1,3 @@
+awsRegion: ""
+serviceAccountName: external-secrets
+serviceAccountNamespace: external-secrets

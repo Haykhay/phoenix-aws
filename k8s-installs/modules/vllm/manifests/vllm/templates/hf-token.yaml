@@ -1,0 +1,19 @@
+# Optional: gated models need a Hugging Face token. The pod starts without it
+# (optional secretKeyRef) if the secret does not exist.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.name }}-hf-token
+  namespace: {{ .Release.Namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+  target:
+    name: {{ .Values.name }}-hf-token
+  data:
+    - secretKey: token
+      remoteRef:
+        key: {{ .Values.hfTokenSecret }}
+        property: token
