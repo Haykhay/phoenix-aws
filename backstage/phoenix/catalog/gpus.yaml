@@ -1,0 +1,51 @@
+# GPU node types. Each becomes a karpenter-nodepool.<type> unit with these values.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: gpu-l4
+  title: NVIDIA L4
+  description: "NVIDIA L4 (g6), 24 GB."
+  annotations:
+    phoenix/instance-families: "g6"
+    phoenix/gpu-count-max: "1"
+spec:
+  type: phoenix-gpu
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-karpenter
+    - resource:default/component-karpenter-nodepool
+    - resource:default/component-nvidia-gpu-operator
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: gpu-a10g
+  title: NVIDIA A10G
+  description: "NVIDIA A10G (g5), 24 GB, up to 4 per node."
+  annotations:
+    phoenix/instance-families: "g5"
+    phoenix/gpu-count-max: "4"
+spec:
+  type: phoenix-gpu
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-karpenter
+    - resource:default/component-karpenter-nodepool
+    - resource:default/component-nvidia-gpu-operator
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: gpu-l40s
+  title: NVIDIA L40S
+  description: "NVIDIA L40S (g6e), 48 GB."
+  annotations:
+    phoenix/instance-families: "g6e"
+    phoenix/gpu-count-max: "1"
+spec:
+  type: phoenix-gpu
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-karpenter
+    - resource:default/component-karpenter-nodepool
+    - resource:default/component-nvidia-gpu-operator

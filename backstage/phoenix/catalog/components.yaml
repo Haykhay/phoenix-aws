@@ -1,0 +1,302 @@
+# Every k8s-installs component. dependsOn = direct prerequisites: the
+# orchestrator installs in that order and tears down in reverse.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-cluster-config
+  description: "k8s-installs module cluster-config."
+  annotations:
+    phoenix/module: "cluster-config"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-karpenter
+  description: "k8s-installs module karpenter."
+  annotations:
+    phoenix/module: "karpenter"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-kyverno
+  description: "k8s-installs module kyverno."
+  annotations:
+    phoenix/module: "kyverno"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-falco
+  description: "k8s-installs module falco."
+  annotations:
+    phoenix/module: "falco"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-reloader
+  description: "k8s-installs module reloader."
+  annotations:
+    phoenix/module: "reloader"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-external-secrets
+  description: "k8s-installs module external-secrets."
+  annotations:
+    phoenix/module: "external-secrets"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-grafana-stack
+  description: "k8s-installs module grafana-stack."
+  annotations:
+    phoenix/module: "grafana-stack"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-cert-manager
+  description: "k8s-installs module cert-manager."
+  annotations:
+    phoenix/module: "cert-manager"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-aws-load-balancer-controller
+  description: "k8s-installs module aws-load-balancer-controller."
+  annotations:
+    phoenix/module: "aws-load-balancer-controller"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-external-dns
+  description: "k8s-installs module external-dns."
+  annotations:
+    phoenix/module: "external-dns"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-istio
+  description: "k8s-installs module istio."
+  annotations:
+    phoenix/module: "istio"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-cert-manager
+    - resource:default/component-aws-load-balancer-controller
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-argo-cd
+  description: "k8s-installs module argo-cd."
+  annotations:
+    phoenix/module: "argo-cd"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-istio
+    - resource:default/component-external-secrets
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-kargo
+  description: "k8s-installs module kargo."
+  annotations:
+    phoenix/module: "kargo"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-argo-cd
+    - resource:default/component-cert-manager
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-nvidia-gpu-operator
+  description: "k8s-installs module nvidia-gpu-operator."
+  annotations:
+    phoenix/module: "nvidia-gpu-operator"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-karpenter-nodepool
+  description: "k8s-installs module karpenter-nodepool."
+  annotations:
+    phoenix/module: "karpenter-nodepool"
+    phoenix/instanced: "true"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-karpenter
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-vllm
+  description: "k8s-installs module vllm."
+  annotations:
+    phoenix/module: "vllm"
+    phoenix/instanced: "true"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-istio
+    - resource:default/component-karpenter-nodepool
+    - resource:default/component-nvidia-gpu-operator
+    - resource:default/component-external-secrets
+    - resource:default/component-external-dns
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-clickhouse-operator
+  description: "k8s-installs module clickhouse-operator."
+  annotations:
+    phoenix/module: "clickhouse-operator"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-cert-manager
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-langfuse
+  description: "k8s-installs module langfuse."
+  annotations:
+    phoenix/module: "langfuse"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-clickhouse-operator
+    - resource:default/component-cert-manager
+    - resource:default/component-istio
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-cloudnative-pg
+  description: "k8s-installs module cloudnative-pg."
+  annotations:
+    phoenix/module: "cloudnative-pg"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-cloudnative-pg-cluster
+  description: "k8s-installs module cloudnative-pg-cluster."
+  annotations:
+    phoenix/module: "cloudnative-pg-cluster"
+    phoenix/instanced: "true"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-cloudnative-pg
+    - resource:default/component-external-secrets
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-valkey-redis
+  description: "k8s-installs module valkey-redis."
+  annotations:
+    phoenix/module: "valkey-redis"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-valkey-redis-cluster
+  description: "k8s-installs module valkey-redis-cluster."
+  annotations:
+    phoenix/module: "valkey-redis-cluster"
+    phoenix/instanced: "true"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-valkey-redis
+    - resource:default/component-external-secrets
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-strimzi-kafka
+  description: "k8s-installs module strimzi-kafka."
+  annotations:
+    phoenix/module: "strimzi-kafka"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: component-strimzi-kafka-cluster
+  description: "k8s-installs module strimzi-kafka-cluster."
+  annotations:
+    phoenix/module: "strimzi-kafka-cluster"
+    phoenix/instanced: "true"
+spec:
+  type: phoenix-component
+  owner: group:default/platform
+  dependsOn:
+    - resource:default/component-strimzi-kafka
+    - resource:default/component-external-secrets

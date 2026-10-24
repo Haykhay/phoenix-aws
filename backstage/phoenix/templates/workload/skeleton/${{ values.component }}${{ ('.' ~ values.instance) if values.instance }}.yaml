@@ -1,0 +1,36 @@
+{%- set c = values.cluster -%}
+{%- set a = values.account -%}
+# Written by Backstage (template phoenix-workload). Identity from the cluster
+# and account entities; versions and sizes are the component's defaults.
+organisation: ${{ a['phoenix/organisation'] }}
+group: ${{ c['phoenix/group'] }}
+environment: ${{ c['phoenix/environment'] }}
+{%- if c['phoenix/requester'] %}
+requester: ${{ c['phoenix/requester'] }}
+{%- endif %}
+tier: ${{ c['phoenix/tier'] }}
+region: ${{ c['phoenix/region'] }}
+cluster: "${{ c['phoenix/cluster'] }}"
+account_id: "${{ a['phoenix/account-id'] }}"
+module_ref: main
+state:
+  bucket: ${{ a['phoenix/state-bucket'] }}
+  region: ${{ a['phoenix/state-region'] }}
+tags:
+  owner.team: ${{ c['phoenix/group'] }}
+  Reason: ${{ values.reason | dump }}
+  LongLive: false
+{%- if values.component == 'argo-cd' %}
+spec:
+  repo_url: ${{ a['phoenix/apps-repo'] | dump }}
+{%- elif values.component == 'karpenter-nodepool' %}
+spec:
+  instance_families: ${{ values.gpu['phoenix/instance-families'].split(',') | dump }}
+  gpu_count_max: ${{ values.gpu['phoenix/gpu-count-max'] }}
+{%- elif values.component == 'vllm' %}
+spec:
+  model: ${{ values.modelId | dump }}
+  gpu: ${{ values.gpuType | dump }}
+{%- else %}
+spec: {}
+{%- endif %}
