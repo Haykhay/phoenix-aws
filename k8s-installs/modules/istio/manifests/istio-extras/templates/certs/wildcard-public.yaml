@@ -1,0 +1,14 @@
+{{- if .Values.gateways.external.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certs.publicSecretName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Values.certs.publicSecretName }}
+  issuerRef:
+    name: {{ .Values.certs.issuerName }}
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.{{ .Values.certs.publicZoneName }}"
+{{- end }}

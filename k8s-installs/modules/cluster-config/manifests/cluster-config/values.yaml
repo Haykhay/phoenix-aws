@@ -1,0 +1,5 @@
+ebs:
+  enabled: true
+# Tags for EBS volumes created through the gp3 StorageClass; set by Terraform
+# from the unit's tags.
+tags: {}

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: route
+description: HTTPRoute on an istio gateway, with an external-dns record
+type: application
+version: 0.1.0

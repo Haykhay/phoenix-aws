@@ -1,0 +1,4 @@
+apiVersion: v2
+name: external-secrets-cluster-secret-stores
+description: ClusterSecretStore resources for External Secrets Operator
+version: 0.1.0

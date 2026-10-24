@@ -1,0 +1,4 @@
+apiVersion: v2
+name: kyverno-policies
+description: Kyverno policies for platform image governance
+version: 0.1.0

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argocd-repo-secret
+description: Argo CD repository Secret for the bootstrap repo (SSH deploy key)
+type: application
+version: 0.1.0

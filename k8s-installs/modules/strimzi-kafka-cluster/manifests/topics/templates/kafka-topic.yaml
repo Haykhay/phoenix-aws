@@ -1,0 +1,27 @@
+{{- range $topic := .Values.topics }}
+{{- /* Default to enabled when the key is omitted, so existing configs from before this field existed keep working unchanged. */}}
+{{- if (ternary $topic.enabled true (hasKey $topic "enabled")) }}
+{{- $resourceName := default $topic.name $topic.resourceName }}
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  # resourceName is <cluster>-<topic>, made a valid Kubernetes name by
+  # Terraform; the real Kafka topic name comes from `name` (spec.topicName).
+  name: {{ $resourceName | quote }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    strimzi.io/cluster: {{ $.Values.clusterName }}
+  annotations:
+    # A Helm uninstall or values mistake must not implicitly delete Kafka data.
+    helm.sh/resource-policy: keep
+spec:
+  topicName: {{ $topic.name | quote }}
+  partitions: {{ $topic.partitions }}
+  replicas: {{ $topic.replicas }}
+  {{- with $topic.config }}
+  config:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

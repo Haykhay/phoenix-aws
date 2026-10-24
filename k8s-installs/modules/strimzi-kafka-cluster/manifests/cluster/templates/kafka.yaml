@@ -1,0 +1,59 @@
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: {{ .Values.kafkaVersion }}
+    metadataVersion: {{ .Values.metadataVersion }}
+    authorization:
+      type: simple
+    listeners:
+      {{- range .Values.listeners }}
+      - name: {{ .name }}
+        port: {{ .port }}
+        type: {{ .type }}
+        tls: {{ .tls }}
+        authentication:
+          type: scram-sha-512
+        {{- if eq .type "loadbalancer" }}
+        configuration:
+          allocateLoadBalancerNodePorts: false
+          {{- with .configuration }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    config:
+      {{- toYaml .Values.kafkaConfig | nindent 6 }}
+    {{- if or .Values.nodeSelector .Values.tolerations }}
+    template:
+      pod:
+        {{- with .Values.nodeSelector }}
+        nodeSelector:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.tolerations }}
+        tolerations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+    {{- end }}
+  {{- with .Values.clusterCa }}
+  clusterCa:
+    validityDays: {{ .validityDays }}
+    renewalDays: {{ .renewalDays }}
+    certificateExpirationPolicy: {{ .certificateExpirationPolicy }}
+  {{- end }}
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+  {{- if .Values.kafkaExporter.enabled }}
+  kafkaExporter: {}
+  {{- end }}
+  {{- if .Values.cruiseControl.enabled }}
+  cruiseControl: {}
+  {{- end }}
