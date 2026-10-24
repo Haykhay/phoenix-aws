@@ -1,0 +1,24 @@
+# Local AI-assistant and tooling files (personal, not part of the platform)
+CLAUDE.md
+.claude/
+.superpowers/
+
+# Illustrative only; the networking (IPAM, transit gateway) is redesigned in
+# its own part of the series and lands then.
+ipam/
+
+# Terraform (also in each project's .gitignore)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Secrets and OS noise
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store

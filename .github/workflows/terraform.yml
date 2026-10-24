@@ -1,0 +1,252 @@
+name: terraform
+
+# One run = one unit = one YAML file, path relative to the repo root:
+#   infrastructure/environments/<tier>/<env_id>/<scope>/<resource-set>.yaml
+#   k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml
+#
+# Backstage calls workflow_dispatch with config_file + action, in dependency
+# order (Layer 2: core-network -> core-platform -> data-*; Layer 3: after the
+# cluster's core-platform, prerequisites first), destroying in reverse, and
+# stops the chain on a failed run. Pull requests plan every changed YAML and
+# test every changed module.
+#
+# Removing a unit is a destroy dispatched by Backstage *before* its YAML is
+# deleted; a deleted YAML on its own plans nothing.
+#
+# k8s-installs units run on the self-hosted runner in the management VPC
+# (EKS endpoints are private); everything else on GitHub-hosted runners.
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/environments/**.yaml"
+      - "infrastructure/modules/**"
+      - "k8s-installs/environments/**.yaml"
+      - "k8s-installs/modules/**"
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: "Unit YAML from the repo root, e.g. infrastructure/environments/sandbox/vision-sandbox-jdoe/eu-west-1/core-platform.yaml"
+        required: true
+        type: string
+      action:
+        description: "plan, apply or destroy (apply/destroy only from main)"
+        required: true
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TERRAFORM_VERSION: "~1.15.0"
+  # Every account's deploy role has this name (modules/context, role_name);
+  # only the account ID varies.
+  ROLE_NAME: Terraform-Role
+
+jobs:
+  # Which units and modules this run covers, and where each unit runs.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      units: ${{ steps.diff.outputs.units }}
+      modules: ${{ steps.diff.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          CONFIG_FILE: ${{ inputs.config_file }}
+          BASE_REF: ${{ github.base_ref }}
+          REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            files="$CONFIG_FILE"; modules=""
+          else
+            base="origin/$BASE_REF"
+            # catalog-info.yaml (Backstage entities written next to units) is not a unit.
+            files=$(git diff --name-only --diff-filter=AMR "$base...HEAD" -- \
+              'infrastructure/environments/**.yaml' 'k8s-installs/environments/**.yaml' \
+              | grep -v '/catalog-info\.yaml$' || true)
+            # A fork's pull request never schedules work on the self-hosted
+            # runner (it can reach every cluster). Forks get no AWS credentials
+            # anyway; their infrastructure units fail at login on hosted runners.
+            if [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$REPO" ]; then
+              files=$(grep -v '^k8s-installs/' <<<"$files" || true)
+            fi
+            # <project>/modules/<name>; k8s _boilerplate is documentation, not a module.
+            modules=$(git diff --name-only "$base...HEAD" -- 'infrastructure/modules/' 'k8s-installs/modules/' \
+              | cut -d/ -f1-3 | grep -v '^k8s-installs/modules/_boilerplate$' | sort -u || true)
+            # k8s-installs builds on infrastructure: it sources modules/context
+            # and modules/credentials and reads core-platform's and dns's
+            # outputs. Any infrastructure module change re-tests every k8s module.
+            if grep -q '^infrastructure/modules/' <<<"$modules"; then
+              k8s=$(find k8s-installs/modules -mindepth 1 -maxdepth 1 -type d ! -name _boilerplate | sort)
+              modules=$(printf '%s\n%s\n' "$modules" "$k8s" | sort -u)
+            fi
+          fi
+          units=$(printf '%s\n' "$files" | jq -Rnc '[inputs | select(length > 0) | {
+            config_file: .,
+            runner: (if startswith("k8s-installs/") then "[\"self-hosted\",\"phoenix-mgmt\"]" else "\"ubuntu-latest\"" end)
+          }]')
+          modules=$(printf '%s\n' "$modules" | jq -Rnc '[inputs | select(length > 0)]')
+          echo "units=$units" >> "$GITHUB_OUTPUT"
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "units: $units"; echo "modules: $modules"
+
+  # Module changes: terraform test against mock providers, no AWS access.
+  module-tests:
+    needs: changes
+    if: needs.changes.outputs.modules != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.changes.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: terraform test
+        working-directory: ${{ matrix.module }}
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          if ls tests/*.tftest.hcl >/dev/null 2>&1; then terraform test; else terraform validate; fi
+
+  unit:
+    needs: changes
+    if: needs.changes.outputs.units != '[]'
+    runs-on: ${{ fromJSON(matrix.unit.runner) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        unit: ${{ fromJSON(needs.changes.outputs.units) }}
+    concurrency:
+      group: tf-${{ matrix.unit.config_file }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read unit
+        id: unit
+        env:
+          FILE: ${{ matrix.unit.config_file }}
+          ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'plan' }}
+        run: |
+          set -euo pipefail
+          err() { echo "::error::$*"; exit 1; }
+          ident='^[a-z0-9]+(-[a-z0-9]+)*$'
+          # Paths reach shell commands and the job summary: a closed character set first.
+          [[ "$FILE" =~ ^[a-z0-9._/-]+$ ]] || err "unit path has unsupported characters (allowed: a-z 0-9 . _ / -)"
+          [ -f "$FILE" ] || err "$FILE does not exist"
+          IFS=/ read -r project root tier env_id scope rest <<<"$FILE"
+          [ "$root" = environments ] || err "$FILE is not <project>/environments/..."
+          case "$project" in
+            infrastructure)
+              # infrastructure/environments/<tier>/<env_id>/<scope>/<resource-set>.yaml
+              [[ "$rest" == *.yaml && "$rest" != */* ]] || err "$FILE is not infrastructure/environments/<tier>/<env_id>/<scope>/<resource-set>.yaml"
+              rs="${rest%.yaml}"
+              [ "$rs" != context ] && [ "$rs" != credentials ] && [ -d "$project/modules/$rs" ] || err "no resource set $project/modules/$rs"
+              state_key="$env_id/$scope/$rs/terraform.tfstate"
+              ;;
+            k8s-installs)
+              # k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml
+              cluster="${rest%%/*}"; file="${rest#*/}"
+              [[ "$rest" == */* && "$file" == *.yaml && "$file" != */* ]] || err "$FILE is not k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml"
+              unit="${file%.yaml}"; rs="${unit%%.*}"
+              if [ "$unit" != "$rs" ]; then
+                [[ "${unit#*.}" =~ $ident ]] || err "instance '${unit#*.}' must match $ident"
+              fi
+              [ "$rs" != cluster ] && [ "$rs" != _boilerplate ] && [ -d "$project/modules/$rs" ] || err "no component $project/modules/$rs"
+              [ "$(yq -r '.cluster' "$FILE")" = "$cluster" ] || err "cluster in the YAML ($(yq -r '.cluster' "$FILE")) does not match the path ($cluster)"
+              state_key="$env_id/$scope/k8s/$cluster/$unit/terraform.tfstate"
+              ;;
+            *) err "unknown project '$project' in $FILE" ;;
+          esac
+
+          y() { yq -r "$1" "$FILE"; }
+          yaml_env_id=$(y '[.group, .environment, .requester] | map(select(. != null)) | join("-")')
+          yaml_scope=$(y '.region // "global"')
+          [ "$(y .tier)" = "$tier" ] || err "tier in the YAML ($(y .tier)) does not match the path ($tier)"
+          [ "$yaml_env_id" = "$env_id" ] || err "env_id from the YAML ($yaml_env_id) does not match the path ($env_id)"
+          [ "$yaml_scope" = "$scope" ] || err "region in the YAML ($yaml_scope) does not match the path ($scope)"
+
+          if [ "$ACTION" != plan ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            err "$ACTION only runs from main"
+          fi
+
+          account_id=$(y .account_id)
+          [[ "$account_id" =~ ^[0-9]{12}$ ]] || err "account_id must be 12 digits"
+          {
+            echo "action=$ACTION"
+            echo "project=$project"
+            echo "resource_set=$rs"
+            echo "module_ref=$(y '.module_ref // "main"')"
+            echo "role_arn=arn:aws:iam::$account_id:role/$ROLE_NAME"
+            echo "aws_region=$(y '.region // .global_region // "us-east-1"')"
+            echo "state_bucket=$(y .state.bucket)"
+            echo "state_region=$(y .state.region)"
+            echo "state_kms_key_id=$(y '.state.kms_key_id // ""')"
+            echo "state_key=$state_key"
+          } >> "$GITHUB_OUTPUT"
+
+      # Modules run from the ref the YAML pins: main for sandboxes, a release
+      # tag for stage/UAT/prod. The YAML itself always comes from this checkout.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.unit.outputs.module_ref }}
+          path: src
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.unit.outputs.role_arn }}
+          role-session-name: gha-${{ github.run_id }}-${{ steps.unit.outputs.resource_set }}
+          aws-region: ${{ steps.unit.outputs.aws_region }}
+
+      - name: terraform init
+        working-directory: src/${{ steps.unit.outputs.project }}/modules/${{ steps.unit.outputs.resource_set }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ steps.unit.outputs.state_bucket }}" \
+            -backend-config="key=${{ steps.unit.outputs.state_key }}" \
+            -backend-config="region=${{ steps.unit.outputs.state_region }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true" \
+            ${{ steps.unit.outputs.state_kms_key_id != '' && format('-backend-config="kms_key_id={0}"', steps.unit.outputs.state_kms_key_id) || '' }}
+
+      - name: terraform ${{ steps.unit.outputs.action }}
+        working-directory: src/${{ steps.unit.outputs.project }}/modules/${{ steps.unit.outputs.resource_set }}
+        env:
+          TF_VAR_config_file: ${{ github.workspace }}/${{ matrix.unit.config_file }}
+          TF_VAR_pipeline_user: ${{ github.actor }}
+          UNIT_FILE: ${{ matrix.unit.config_file }}
+        run: |
+          set -o pipefail
+          case "${{ steps.unit.outputs.action }}" in
+            plan)    terraform plan -out=tfplan ;;
+            apply)   terraform apply -auto-approve ;;
+            destroy) terraform destroy -auto-approve ;;
+          esac
+          if [ -f tfplan ]; then
+            {
+              echo "### $UNIT_FILE"
+              echo '```'
+              terraform show -no-color tfplan | tail -n 300
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
