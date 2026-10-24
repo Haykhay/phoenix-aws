@@ -1,0 +1,15 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec: {"clusters": {"core": {"kafka_version": "3.8.x.kraft", "broker_instance_type": "kafka.m7g.large", "broker_per_zone": 1, "allow_eks_node_security_group": true, "users": [{"role_arn": "arn:aws:iam::111111111111:role/core-app-role", "acls": [{"resource_type": "topic", "name": "core-events", "operations": ["Read", "Write", "Describe"]}, {"resource_type": "group", "name": "core-app", "operations": ["Read"]}]}, {"role_arn": "arn:aws:iam::111111111111:role/analytics-reader-role", "acls": [{"resource_type": "topic", "name": "core-events", "operations": ["Read", "Describe"]}, {"resource_type": "group", "name": "analytics", "operations": ["Read"]}]}], "scram_users": ["app"]}}}

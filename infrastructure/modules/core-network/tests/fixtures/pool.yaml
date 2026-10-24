@@ -1,0 +1,20 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec:
+  vpcs:
+    vpc-1:
+      pool: nonprod
+      ipam_pool_id: ipam-pool-0123456789abcdef0
+      azs: [eu-west-1a, eu-west-1b, eu-west-1c]

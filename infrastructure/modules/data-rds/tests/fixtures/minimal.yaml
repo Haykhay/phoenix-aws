@@ -1,0 +1,23 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec:
+  instances:
+    core:
+      engine: postgres
+      engine_version: "16.14"
+      family: postgres16
+      major_engine_version: "16"
+      instance_class: db.t4g.small
+      allocated_storage: 20
