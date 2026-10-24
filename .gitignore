@@ -1,0 +1,15 @@
+# Terraform (also in each project's .gitignore)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Secrets and OS noise
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
