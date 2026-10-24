@@ -1,0 +1,116 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: phoenix-environment
+  title: Phoenix environment
+  description: >-
+    Request an AWS environment for your group. Writes one YAML file per
+    resource set into infrastructure/environments/ (paths from the repo root).
+  tags: [phoenix, aws, terraform]
+spec:
+  owner: group:default/vision
+  type: environment
+
+  parameters:
+    - title: Who and why
+      required: [group, kind, environment, reason]
+      properties:
+        group:
+          title: Group
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        kind:
+          title: Kind
+          type: string
+          default: personal
+          enum: [personal, scheduled, always-on]
+          enumNames:
+            - Personal sandbox (just me, torn down Friday or when idle)
+            - Group, scheduled (up and down on the group's approved schedule)
+            - Group, always on
+        environment:
+          title: Environment name
+          type: string
+          default: sandbox
+          pattern: '^[a-z][a-z0-9]*$'
+          ui:help: Lowercase letters and digits. Personal sandboxes add your user id.
+        squad:
+          title: Squad
+          type: string
+          pattern: '^[a-z0-9-]*$'
+        reason:
+          title: Reason
+          type: string
+          ui:help: Why this environment exists. Becomes the Reason tag.
+
+    - title: What
+      required: [region, resourceSets]
+      properties:
+        region:
+          title: Region
+          type: string
+          default: eu-west-1
+          enum: [eu-west-1, eu-west-2, eu-central-1, us-east-1, sa-east-1, ap-northeast-2]
+        resourceSets:
+          title: Resource sets
+          type: array
+          uniqueItems: true
+          default: [core-network, core-platform]
+          items:
+            type: string
+            enum: [core-network, core-platform, data-rds, dns]
+          ui:widget: checkboxes
+          ui:help: Backstage applies them in order; core-platform needs core-network, data-rds needs core-platform.
+
+  steps:
+    # The account registry: organisation, account ID, state bucket.
+    - id: account
+      name: Read the group's account
+      action: catalog:fetch
+      input:
+        entityRef: resource:default/${{ parameters.group | parseEntityRef | pick('name') }}-aws-account
+
+    - id: units
+      name: Write one YAML per resource set
+      each: ${{ parameters.resourceSets }}
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: >-
+          infrastructure/environments/sandbox/${{ (parameters.group | parseEntityRef | pick('name')) ~ '-' ~ parameters.environment ~ ('-' ~ user.entity.metadata.name if parameters.kind == 'personal' else '') }}/${{ 'global' if each.value == 'dns' else parameters.region }}
+        values:
+          resourceSet: ${{ each.value }}
+          annotations: ${{ steps.account.output.entity.metadata.annotations }}
+          group: ${{ parameters.group | parseEntityRef | pick('name') }}
+          environment: ${{ parameters.environment }}
+          requester: ${{ user.entity.metadata.name if parameters.kind == 'personal' else '' }}
+          kind: ${{ parameters.kind }}
+          region: ${{ parameters.region }}
+          regionCode: ${{ {'eu-west-1':'euw1','eu-west-2':'euw2','eu-central-1':'euc1','us-east-1':'use1','sa-east-1':'sae1','ap-northeast-2':'apne2'}[parameters.region] }}
+          squad: ${{ parameters.squad }}
+          reason: ${{ parameters.reason }}
+
+    - id: cluster-entity
+      if: ${{ 'core-platform' in parameters.resourceSets }}
+      name: Describe the cluster for the workload form
+      action: fetch:template
+      input:
+        url: ./cluster-entity
+        targetPath: >-
+          infrastructure/environments/sandbox/${{ (parameters.group | parseEntityRef | pick('name')) ~ '-' ~ parameters.environment ~ ('-' ~ user.entity.metadata.name if parameters.kind == 'personal' else '') }}/${{ parameters.region }}
+        values:
+          envId: ${{ (parameters.group | parseEntityRef | pick('name')) ~ '-' ~ parameters.environment ~ ('-' ~ user.entity.metadata.name if parameters.kind == 'personal' else '') }}
+          group: ${{ parameters.group | parseEntityRef | pick('name') }}
+          environment: ${{ parameters.environment }}
+          requester: ${{ user.entity.metadata.name if parameters.kind == 'personal' else '' }}
+          region: ${{ parameters.region }}
+
+  output:
+    text:
+      - title: Next
+        content: >-
+          Files written under infrastructure/environments/sandbox/. Opening the pull request
+          and running the units in order come in the next iteration.

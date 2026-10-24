@@ -1,0 +1,39 @@
+# Entra ID: sign-in and org (users/groups) ingestion. Loaded only when
+# ENTRA_ENABLED=true (.env); the Dockerfile's start command adds it.
+# Every value comes from the environment; nothing secret lives here.
+
+phoenix:
+  entraEnabled: true # shows the Entra button on the sign-in page
+
+auth:
+  environment: development
+  session:
+    secret: ${AUTH_SESSION_SECRET}
+  providers:
+    microsoft:
+      development:
+        tenantId: ${AZURE_TENANT_ID}
+        clientId: ${AZURE_CLIENT_ID}
+        clientSecret: ${AZURE_CLIENT_SECRET}
+        domainHint: ${AZURE_TENANT_ID}
+        signIn:
+          resolvers:
+            # Users ingested below carry the graph.microsoft.com/user-id annotation.
+            - resolver: userIdMatchingUserEntityAnnotation
+            - resolver: emailMatchingUserEntityProfileEmail
+
+catalog:
+  providers:
+    microsoftGraphOrg:
+      default:
+        tenantId: ${AZURE_TENANT_ID}
+        clientId: ${AZURE_CLIENT_ID}
+        clientSecret: ${AZURE_CLIENT_SECRET}
+        user:
+          filter: ${ENTRA_USER_FILTER}
+        group:
+          # Only Phoenix groups, e.g. phoenix-vision -> Backstage group "vision".
+          filter: ${ENTRA_GROUP_FILTER}
+        schedule:
+          frequency: PT1H
+          timeout: PT50M

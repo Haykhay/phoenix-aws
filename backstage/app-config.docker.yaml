@@ -1,0 +1,40 @@
+# Local Docker only (docker-compose.yaml). Never deploy with this file.
+auth:
+  providers:
+    guest:
+      # Guest sign-in is refused under NODE_ENV=production without this.
+      dangerouslyAllowOutsideDevelopment: true
+      # Sign in as the catalog's guest (a vision member), so the template sees a user.
+      userEntityRef: user:default/guest
+
+catalog:
+  # Replaces the example locations. ./phoenix is mounted, not baked in, so
+  # edits show up on the next catalog refresh without a rebuild.
+  locations:
+    - type: file
+      target: ./phoenix/org.yaml
+      rules:
+        - allow: [User, Group]
+    - type: file
+      target: ./phoenix/accounts.yaml
+      rules:
+        - allow: [Resource]
+    - type: file
+      target: ./phoenix/templates/environment/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./phoenix/templates/workload/template.yaml
+      rules:
+        - allow: [Template]
+    # Components, workload types, databases, GPUs, models.
+    - type: file
+      target: ./phoenix/catalog/*.yaml
+      rules:
+        - allow: [Resource]
+    # Clusters. In stage 2 these come from the catalog-info.yaml the
+    # environment template writes next to core-platform; this is the local stand-in.
+    - type: file
+      target: ./phoenix/clusters.yaml
+      rules:
+        - allow: [Resource]

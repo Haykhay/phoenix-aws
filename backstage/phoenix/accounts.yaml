@@ -1,0 +1,21 @@
+# Stand-in for the account registry (DynamoDB, filled by account vending).
+# One Resource per group account, named <group>-aws-account; the template
+# reads these annotations. Only IDs and names here: roles are Terraform-Role
+# in every account, derived from the account ID.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: vision-aws-account
+  description: AWS account of the vision group
+  annotations:
+    phoenix/organisation: acme
+    phoenix/account-id: "111111111111"
+    phoenix/state-bucket: acme-tfstate-111111111111
+    phoenix/state-region: eu-west-1
+    phoenix/management-account-id: "444444444444"
+    phoenix/base-domain: example.com
+    # The group's GitOps repository; every cluster's Argo CD bootstraps from it.
+    phoenix/apps-repo: "git@github.com:acme/phoenix-apps.git"
+spec:
+  type: aws-account
+  owner: group:default/vision
