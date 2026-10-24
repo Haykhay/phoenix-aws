@@ -1,0 +1,15 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec: {"db_prefix": "rds", "allow_eks_node_security_group": true, "cloudwatch_log_retention_days": 7, "instances": {"core": {"engine": "postgres", "engine_version": "16.14", "family": "postgres16", "major_engine_version": "16", "allocated_storage": 100, "auto_minor_version_upgrade": false, "instance_class": "db.t4g.small", "backup_retention_period": 7, "apply_immediately": true, "backup_window": "07:00-08:00", "port": 5432, "replica_enabled": false, "username": "core_sandbox", "db_name": "core_sandbox", "parameters": [{"name": "max_connections", "value": "700", "apply_method": "pending-reboot"}, {"name": "password_encryption", "value": "scram-sha-256", "apply_method": "pending-reboot"}, {"name": "client_encoding", "value": "utf8", "apply_method": "pending-reboot"}], "enabled_cloudwatch_logs_exports": ["postgresql", "upgrade"], "eks_clusters": ["1"]}}}

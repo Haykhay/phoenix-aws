@@ -1,0 +1,15 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec: {"allow_eks_node_security_group": true, "clusters": {"core-cache": {"engine": "valkey", "engine_version": "8.0", "node_type": "cache.t4g.micro", "num_cache_clusters": 1, "automatic_failover": false, "multi_az": false, "transit_encryption": true, "at_rest_encryption": true, "snapshot_retention_limit": 1, "apply_immediately": true}}}

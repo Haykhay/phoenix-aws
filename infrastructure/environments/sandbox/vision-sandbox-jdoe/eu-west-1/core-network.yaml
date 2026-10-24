@@ -1,0 +1,25 @@
+# Written by Backstage. Identity, account and state come from the account
+# registry (DynamoDB); spec comes from the request form.
+organisation: acme
+group: vision
+environment: sandbox
+requester: jdoe
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: vision
+  owner.squad: model-eval
+  Reason: jdoe vLLM model evaluation
+  LongLive: false
+spec:
+  vpcs:
+    vpc-1:
+      pool: nonprod
+      azs: [eu-west-1a, eu-west-1b, eu-west-1c]
+      enable_nat_gateway: true
+      enable_vpc_endpoints: true

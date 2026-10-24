@@ -1,0 +1,24 @@
+organisation: acme
+group: vision
+environment: sandbox
+tier: sandbox
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec:
+  providers:
+    management:
+      account_id: "444444444444"
+  zones:
+    zone-1:
+      public_zone_name: vision.example.com
+      internal_zone_name: vision.example.com
+      public_zone_exists: true
+      internal_zone_exists: false
+      delegate_public_zone: false
