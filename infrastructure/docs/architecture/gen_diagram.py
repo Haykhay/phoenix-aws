@@ -103,8 +103,8 @@ def text(label, x, y, w, h, size=11, color="#545B64", bold=False):
 
 
 # ===================================================================== header
-vertex("<b>Phoenix — self-service AWS environments</b><br><span style='font-size:13px'>"
-       "Backstage takes the request · GitHub holds the YAML and runs Terraform · one AWS account per group</span>",
+vertex("<b>Phoenix on AWS — self-service environments and workloads</b><br><span style='font-size:13px'>"
+       "Backstage takes the request · GitHub holds the YAML and runs plain Terraform · one AWS account per group · apps and AI on EKS</span>",
        40, 20, 1500, 56, "text;html=1;fontSize=24;fontColor=#232F3E;align=left;verticalAlign=top;")
 
 # ===================================================================== people  (x 40..220)
@@ -116,13 +116,13 @@ manager = res("Engineering manager<br>approves group schedules", 90, 420, "user"
 BX, BW = 280, 460
 bs = box("", BX, 110, BW, 560, fill="#F1F5FB", stroke="#1F5FBF")
 brand("", BX + 20, 126, "backstage", 30, tile="#121212")
-text("Backstage — developer portal (run locally)", BX + 66, 128, 380, 24, size=15, color="#1F5FBF", bold=True)
-bs_forms = box("<b>Software templates / forms</b><br>environment · tier · resource sets<br>"
-               "tags: owner.team · Reason · LongLive", BX + 20, 180, BW - 40, 70)
-bs_const = box("<b>Environment constants</b><br>organisation · group · account ID · region<br>"
-               "state bucket · deploy role (from the account registry)", BX + 20, 264, BW - 40, 70)
-bs_orch = box("<b>Orchestrator</b><br>apply: ① core-network → ② core-platform → ③ data-rds / -elasticache / -msk<br>"
-              "observability before core-platform · destroy in reverse · independent: dns, ecr",
+text("Backstage — own repo, fronts every cloud", BX + 66, 128, 380, 24, size=15, color="#1F5FBF", bold=True)
+bs_forms = box("<b>Forms</b><br>environment: tier · resource sets → infrastructure units<br>"
+               "workload: type · database · GPU · model → k8s-installs units", BX + 20, 180, BW - 40, 70)
+bs_const = box("<b>Catalog</b><br>account registry (account ID · state bucket) · clusters<br>"
+               "components (dependsOn) · workload types · databases · GPUs · models", BX + 20, 264, BW - 40, 70)
+bs_orch = box("<b>Orchestrator</b> (to build)<br>infrastructure: ① core-network → ② core-platform → ③ data-*<br>"
+              "k8s-installs: components in dependsOn order · destroy in reverse · notify when ready",
               BX + 20, 348, BW - 40, 84)
 bs_life = box("<b>Lifecycle</b><br>personal sandbox: torn down Friday evening or when idle<br>"
               "group schedule (manager-approved): up Monday, down Friday<br>LongLive: kept",
@@ -147,29 +147,29 @@ GX, GW = 880, 440
 box("", GX, 110, GW, 920, fill="#F6F8FA", stroke="#24292F")
 brand("", GX + 20, 124, "github", 32)
 text("GitHub", GX + 62, 128, 200, 24, size=16, color="#24292F", bold=True)
-repo = box("<b>Repo: infrastructure</b><br><br>"
-           "<b>environments/</b>&lt;env&gt;/&lt;scope&gt;/&lt;resource-set&gt;.yaml<br>"
-           "&nbsp;&nbsp;one file per unit, written by Backstage<br>"
-           "&nbsp;&nbsp;organisation · group · requester · tier · account<br>"
-           "&nbsp;&nbsp;state · role_arn · tags · module_ref · spec<br><br>"
-           "<b>modules/</b> — plain Terraform roots<br>"
-           "&nbsp;&nbsp;context: naming · mandatory tags · VPC lookup<br>"
-           "&nbsp;&nbsp;core-network · core-platform · dns<br>"
-           "&nbsp;&nbsp;data-rds · data-elasticache · data-msk<br>"
-           "&nbsp;&nbsp;ecr (pull-through) · observability<br>"
-           "&nbsp;&nbsp;credentials (library)<br><br>"
-           "<b>Approval</b><br>"
-           "&nbsp;&nbsp;sandbox: merged by Backstage, no review<br>"
-           "&nbsp;&nbsp;stage / UAT / prod: approvers from Backstage groups (later)",
+repo = box("<b>Repo: phoenix-aws</b> — one YAML file per unit<br><br>"
+           "<b>infrastructure/</b> (Layer 2)<br>"
+           "&nbsp;&nbsp;environments/&lt;tier&gt;/&lt;env_id&gt;/&lt;scope&gt;/&lt;set&gt;.yaml<br>"
+           "&nbsp;&nbsp;context · core-network · core-platform · dns<br>"
+           "&nbsp;&nbsp;data-rds/-elasticache/-msk · ecr · observability<br><br>"
+           "<b>k8s-installs/</b> (Layer 3)<br>"
+           "&nbsp;&nbsp;…/&lt;region&gt;/&lt;cluster&gt;/&lt;component&gt;[.&lt;instance&gt;].yaml<br>"
+           "&nbsp;&nbsp;baseline: Karpenter · kyverno · falco · secrets · Grafana<br>"
+           "&nbsp;&nbsp;service: Istio · cert-manager · external-dns · Argo CD · Kargo<br>"
+           "&nbsp;&nbsp;AI: GPU pools · GPU operator · vLLM · Langfuse<br>"
+           "&nbsp;&nbsp;databases: Postgres · Valkey · Kafka (sandbox)<br><br>"
+           "<b>Approval</b> sandbox: merged by Backstage<br>"
+           "&nbsp;&nbsp;stage / UAT / prod: Backstage groups (later)",
            GX + 20, 176, GW - 40, 400)
 gha = box("<b>GitHub Actions — terraform.yml</b><br><br>"
           "pull_request: <i>plan</i> each changed YAML<br>"
           "workflow_dispatch: <i>plan | apply | destroy</i> one YAML<br><br>"
           "1. checkout YAML (main) + modules at module_ref<br>"
-          "2. OIDC → deploy role from the YAML<br>"
+          "2. OIDC → Terraform-Role (ARN from account ID)<br>"
           "3. terraform init — S3 backend from the YAML<br>"
-          "&nbsp;&nbsp;&nbsp;&nbsp;key &lt;env&gt;/&lt;scope&gt;/&lt;resource-set&gt;<br>"
           "4. terraform plan / apply / destroy<br><br>"
+          "AWS units: GitHub-hosted runners<br>"
+          "cluster units: phoenix-mgmt runner (private EKS)<br><br>"
           "sandbox: module_ref = main<br>"
           "stage / UAT / prod: release tag (v0.1.0 …)<br>"
           "no Terragrunt · no helper scripts",
@@ -201,25 +201,25 @@ igw = res("Internet gateway", AX + 340, 440, "internet_gateway", NET, 48)
 group("Private platform subnets (×3 AZ) — core-platform", AX + 80, 550, 720, 290, "group_security_group",
       "#00A4A6", fill="#E6F6F7", font="#147EBA", extra="grStroke=0;")
 eks = svc("Amazon EKS<br>clusters 1–20", AX + 110, 590, "eks", COMPUTE)
-nodes = res("Node groups<br>+ Karpenter", AX + 250, 590, "instances", COMPUTE)
-gpu = res("GPU nodes (vLLM)<br>scale to zero", AX + 390, 590, "instances", COMPUTE)
+nodes = res("System node group<br>+ Karpenter", AX + 250, 590, "instances", COMPUTE)
+gpu = res("Karpenter GPU pools<br>per GPU type, to zero", AX + 390, 590, "instances", COMPUTE)
 brand("", AX + 432, 578, "nvidia", 22)
 sqs = svc("SQS<br>Karpenter interruption", AX + 530, 590, "sqs", INTEG)
 podid = svc("IAM<br>Pod Identity", AX + 680, 590, "identity_and_access_management", SEC)
 
-incl = box("<b>In-cluster</b> (deployed from the next repo)", AX + 100, 690, 680, 130, fill="#FFFFFF", stroke="#147EBA",
+incl = box("<b>In-cluster</b> — k8s-installs units, one per component", AX + 100, 690, 680, 130, fill="#FFFFFF", stroke="#147EBA",
            extra="dashed=1;")
-brand("vLLM<br>/metrics · OTel", AX + 130, 724, "vllm", 34)
+brand("vLLM<br>InferencePool", AX + 130, 724, "vllm", 34)
 brand("NVIDIA DCGM<br>GPU metrics", AX + 230, 724, "nvidia", 34)
 brand("OTel / Alloy<br>collector", AX + 330, 724, "opentelemetry", 34)
-brand("Prometheus<br>→ Mimir", AX + 430, 724, "prometheus", 34)
+brand("Mimir<br>(Kafka)", AX + 430, 724, "prometheus", 34)
 graf = brand("Grafana<br>Loki · Tempo", AX + 530, 724, "grafana", 34)
-lf = brand("Langfuse<br>+ ClickHouse", AX + 660, 724, "langfuse", 34)
+lf = brand("Langfuse<br>ClickHouse op.", AX + 660, 724, "langfuse", 34)
 group("Private data subnets (×3 AZ) — data-*", AX + 80, 860, 720, 180, "group_security_group",
       "#00A4A6", fill="#E6F6F7", font="#147EBA", extra="grStroke=0;")
-rds = svc("Amazon RDS PostgreSQL<br>apps + Langfuse", AX + 130, 900, "rds", DB)
-ec = svc("ElastiCache Valkey<br>apps + Langfuse", AX + 320, 900, "elasticache", DB)
-msk = svc("Amazon MSK<br>Kafka, IAM auth", AX + 500, 900, "managed_streaming_for_kafka", ANALYTICS)
+rds = svc("Amazon RDS PostgreSQL<br>stage and above", AX + 130, 900, "rds", DB)
+ec = svc("ElastiCache Valkey<br>stage and above", AX + 320, 900, "elasticache", DB)
+msk = svc("Amazon MSK<br>stage and above", AX + 500, 900, "managed_streaming_for_kafka", ANALYTICS)
 tgwa = res("TGW attachment", AX + 670, 904, "transit_gateway", NET, 48)
 
 text("Account-level, per region", AX + 850, 370, 250, 24, size=13, color="#232F3E", bold=True)
@@ -230,7 +230,7 @@ ecr_role = res("IAM role<br>ECR pull-through", AX + 1010, 520, "role", SEC, 48)
 
 box("", AX + 845, 640, 260, 300, fill="#F2F6E8", stroke="#7AA116", extra="dashed=1;")
 text("<b>observability</b> — LongLive,<br>survives weekend teardown", AX + 855, 646, 240, 40, size=12, color="#248814")
-obs = svc("S3 observability bucket<br>&lt;signal&gt;/&lt;cluster&gt;/…", AX + 951, 700, "s3", STORAGE, 48)
+obs = svc("S3 observability bucket<br>&lt;signal prefix&gt;&lt;cluster&gt;/…", AX + 951, 700, "s3", STORAGE, 48)
 obs_kms = svc("KMS", AX + 880, 820, "key_management_service", SEC, 44)
 obs_roles = res("Pod Identity roles<br>per writer", AX + 1010, 820, "role", SEC, 44)
 cw = svc("CloudWatch<br>RDS · cache · MSK · ALB", AX + 951, 960, "cloudwatch_2", MGMT, 44)
@@ -240,12 +240,14 @@ ipam = svc("VPC IPAM pools<br>nonprod · prod · infrastructure", AX + 340, 1190
 text("Owned outside this repo. core-network attaches each VPC to the transit gateway and allocates its "
      "CIDR from IPAM, so overlap is IPAM's job.", AX + 40, 1350, 500, 60)
 
-group("Management (delegated admin) / shared tooling accounts", AX + 580, 1130, 560, 320, "group_account", "#CD2264")
+group("Management (delegated admin) / tooling accounts", AX + 580, 1130, 560, 320, "group_account", "#CD2264")
 parent = res("Route 53 parent zone<br>NS delegation", AX + 630, 1190, "hosted_zone", NET)
 hub = svc("ECR hub<br>(central)", AX + 800, 1190, "ecr", COMPUTE)
 artifactory = brand("Artifactory<br>(company)", AX + 980, 1194, "jfrog", 48)
 brand("", AX + 900, 1300, "githubactions", 22)
 text("scheduled sync<br>regsync / skopeo", AX + 928, 1296, 160, 40, size=11)
+runner = box("<b>phoenix-mgmt runner</b><br>management VPC · reaches private<br>EKS APIs over the transit gateway",
+             AX + 600, 1286, 280, 64, fill="#FFFFFF", stroke="#24292F")
 text("Hub, its registry policy and the sync are outside this repo; each group account caches from the hub on first pull.",
      AX + 600, 1380, 520, 40)
 
@@ -269,8 +271,8 @@ edge(r53, parent, "NS delegation", dashed=True, exit_=(1, 0.5), entry=(0.5, 0), 
 edge(artifactory, hub, "sync", exit_=(0, 0.5), entry=(1, 0.5))
 edge(hub, ecr, "pull-through cache", dashed=True, exit_=(0.5, 0), entry=(0.5, 0),
      points=[(AX + 828, 1150), (AX + 1128, 1150), (AX + 1128, 400), (AX + 894, 400)])
-edge(lf, rds, "", dashed=True, exit_=(0.5, 1), entry=(1, 0.3), points=[(AX + 677, 880), (AX + 250, 880)])
 edge(incl, obs, "metrics · logs · traces", exit_=(1, 0.5), entry=(0, 0.5), points=[(AX + 830, 755), (AX + 830, 724)])
+edge(gha, runner, "cluster units", dashed=True, exit_=(0.5, 1), entry=(0, 0.5), points=[(GX + GW / 2, 1318)])
 edge(graf, cw, "read", dashed=True, exit_=(0.5, 1), entry=(0, 0.5), points=[(AX + 547, 850), (AX + 840, 850), (AX + 840, 982)])
 
 xml = ('<mxfile host="drawio"><diagram id="phoenix" name="Phoenix architecture">'
