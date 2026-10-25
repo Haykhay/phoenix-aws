@@ -14,6 +14,7 @@ workflow runs plain Terraform for each, in order.
 | [`k8s-installs/`](k8s-installs/README.md) | Layer 3 — what runs inside each cluster: baseline, gateway, delivery, databases, GPUs, vLLM, Langfuse | 25 components |
 | Backstage (separate: it fronts every cloud in the series) | The front door: the environment and workload forms, the catalog of what's on offer, Entra sign-in (toggle) | runs locally in Docker |
 | [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml) | The one pipeline for both layers | |
+| [`docs/adr/`](docs/adr/README.md) | The architecture decisions behind it, one record each | 10 ADRs |
 
 ## How a request flows
 
