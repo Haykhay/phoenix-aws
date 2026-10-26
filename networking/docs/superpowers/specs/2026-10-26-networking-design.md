@@ -86,10 +86,10 @@ settings file directly.
 |---|---|---|
 | `networking_account_id`, `tooling_account_id` | 12-digit IDs | No |
 | `hub_regions` | one region, or two (required for two Direct Connects) | Adding a second hub: yes, with a re-apply of every peering. Removing: no |
-| `address_space` | one private supernet, e.g. `10.64.0.0/10` | **No** — fixed at first apply |
-| `segment_netmask` | size of each segment's block, e.g. `/12` | No |
-| `region_netmask` | size of a segment's block per region, e.g. `/16` | No |
-| `vpc_netmask` | default / min / max for a VPC, e.g. `/18`, `/17`–`/22` | Yes |
+| `address_space` | one private supernet; default `10.0.0.0/8` | **No** — fixed at first apply |
+| `segment_netmask` | size of each segment's block; default `/10` | No |
+| `region_netmask` | size of a segment's block per region; default `/13` (8 regions per segment) | No |
+| `vpc_netmask` | per tier; defaults: `sandbox` `/20` (4,096 addresses), `stage` / `uat` / `prod` `/18`; any VPC `/17`–`/22` | Yes (new VPCs) |
 | `egress_mode` | `central` or `independent` | Yes, but every VPC is re-applied and loses outbound connectivity briefly — treat as a migration |
 | `hybrid` | `none`, `vpn`, `dx_vpn`, `dual_dx`, plus its parameters | Yes |
 | `onprem_cidrs` | on-prem ranges (must not overlap `address_space`) | Yes |
@@ -122,11 +122,11 @@ wherever it is used (route tables, on-prem firewalls, Direct Connect allowed
 prefixes):
 
 ```text
-address_space            e.g. 10.64.0.0/10
-├── production           1st block at segment_netmask   e.g. 10.64.0.0/12
-├── non-production       2nd                             e.g. 10.80.0.0/12
-├── shared               3rd (tooling VPC, hub DNS VPC, egress VPCs)  e.g. 10.96.0.0/12
-└── reserved             the rest, not provisioned
+address_space            default 10.0.0.0/8
+├── production           1st block at segment_netmask   10.0.0.0/10
+├── non-production       2nd                             10.64.0.0/10
+├── shared               3rd (tooling VPC, hub DNS VPC, egress VPCs)  10.128.0.0/10
+└── reserved             10.192.0.0/10, not provisioned
 ```
 
 IPAM has a top pool per segment. When a region joins, each segment gets a
@@ -134,6 +134,13 @@ IPAM has a top pool per segment. When a region joins, each segment gets a
 `share_with`. A VPC takes `vpc_netmask` from its segment's regional pool, as
 core-network already does. Because a region's share of a segment is one
 block, a peering needs exactly one static route per segment per region.
+
+With the defaults, a region's /13 holds 32 VPCs at /18 or 128 at /20: in
+non-production that is room for well over a hundred sandboxes alongside the
+stage and UAT environments. Sandboxes default to /20 because they run small
+clusters; pods still take VPC addresses, so 4,096 is enough for a few dozen
+nodes. A larger sandbox can ask for more (the platform's catalog, not the
+requester, sets the size).
 
 The tier decides the segment: `prod` → production; `sandbox`, `stage`, `uat` →
 non-production. The tooling VPC is in shared.
