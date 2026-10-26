@@ -26,10 +26,6 @@ modules/_boilerplate/       the four files every component starts from (document
 - State: `<env_id>/<region>/k8s/<cluster>/<component>[.<instance>]/terraform.tfstate`,
   in the account's state bucket.
 
-Working example — model serving on an L4 with Llama 3.1 8B and a Postgres,
-exactly as the Backstage workload form writes it:
-[`environments/sandbox/vision-sandbox-jdoe/eu-west-1/1/`](environments/sandbox/vision-sandbox-jdoe/eu-west-1/1/).
-
 ## What gets installed
 
 | Choice in the form | Components |
