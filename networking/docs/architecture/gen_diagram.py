@@ -155,10 +155,10 @@ group("Networking account — owns every transit gateway, IPAM, egress, hybrid, 
 
 # IPAM
 ipam_box = box("<b>IPAM</b> (delegated admin) — one summary route per segment<br>"
-               "address space, e.g. 10.64.0.0/10<br>"
-               "├ <font color='#D13212'><b>production</b></font> 10.64.0.0/12 → one /16 per region, on demand<br>"
-               "├ <font color='#1F7A3E'><b>non-production</b></font> 10.80.0.0/12 → one /16 per region<br>"
-               "├ <font color='#8C4FFF'><b>shared</b></font> 10.96.0.0/12 → tooling · hub DNS · egress VPCs<br>"
+               "address space, default 10.0.0.0/8 · VPCs: sandbox /20, others /18<br>"
+               "├ <font color='#D13212'><b>production</b></font> 10.0.0.0/10 → one /13 per region, on demand<br>"
+               "├ <font color='#1F7A3E'><b>non-production</b></font> 10.64.0.0/10 → one /13 per region<br>"
+               "├ <font color='#8C4FFF'><b>shared</b></font> 10.128.0.0/10 → tooling · hub DNS · egress VPCs<br>"
                "└ reserved",
                NX + 30, 150, 700, 140)
 svc("", NX + 650, 160, "vpc", NET, 48)
