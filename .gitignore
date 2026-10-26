@@ -2,6 +2,8 @@
 CLAUDE.md
 .claude/
 .superpowers/
+# Design documents (specs, plans) stay local.
+**/docs/superpowers/
 
 # Illustrative only; the networking (IPAM, transit gateway) is redesigned in
 # its own part of the series and lands then.

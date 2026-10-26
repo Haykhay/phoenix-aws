@@ -7,9 +7,6 @@ and runs them in order through the shared GitHub workflow. Plain Terraform, no
 Terragrunt, no helper scripts. Versions and sizes are decided here, never in
 the form.
 
-Design: [`docs/superpowers/specs/2026-10-24-k8s-installs-backstage-design.md`](docs/superpowers/specs/2026-10-24-k8s-installs-backstage-design.md)
-· Plan: [`docs/superpowers/plans/2026-10-24-k8s-installs-backstage.md`](docs/superpowers/plans/2026-10-24-k8s-installs-backstage.md)
-
 ## Layout
 
 ```text
