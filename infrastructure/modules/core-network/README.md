@@ -9,13 +9,15 @@ Per VPC:
 - VPC
 - subnets (data and platform roles, plus public)
 - route tables
-- NAT
+- NAT (independent egress only)
 - optional VPC endpoints
-- optional Transit Gateway attachment and cross-region peering routes
+- transit gateway attachment to its region's network, associated with its
+  segment's route table and propagated per the segment
+- associations with the forwarding rules shared from the hub (on-prem DNS)
 - base security groups
 
-Per account/region (created once, no matter how many VPCs): the optional TGW RAM
-share and the peering return routes on the regional route table.
+The region's network (transit gateway, segment tables, IPAM pools, peerings)
+is the `networking/` layer's; this module only joins it.
 
 ## Where this runs
 
@@ -40,20 +42,17 @@ are described in `modules/context/README.md`):
 ```yaml
 spec:
   default_vpc: vpc-1
-  vpc_defaults:
-    enable_tgw_attachment: true
-    tgw_destination_cidrs: [172.16.0.0/12, 10.0.0.0/8]
   vpcs:
     vpc-1:
-      pool: nonprod
       azs: [eu-west-1a, eu-west-1b, eu-west-1c]
-      enable_nat_gateway: true
       enable_vpc_endpoints: true
+  network: { ... }                 # the platform settings, copied by Backstage (../../../networking/README.md)
+  vpc_netmask: 20                  # the platform's size for this tier, copied by Backstage
   providers:
-    network:                       # only needed for transit-gateway features
+    network:
       account_id: "<networking account id>"   # role: its Terraform-Role
       state_bucket: <networking account state bucket>
-      state_region: eu-west-1      # default
+      state_region: <its region>
       state_kms_key_id: <key id>   # optional
 ```
 
@@ -65,15 +64,15 @@ is module defaults (`locals.tf`) → `vpc_defaults` → the individual VPC.
 | `enabled` | `true` | The file existing enables the unit; `false` plans a destroy of everything in it |
 | `default_vpc` | — | Required once more than one VPC exists |
 | `name` | `<name_prefix>-<vpc key>` | Name tag / prefix for that VPC's resources |
-| `pool` | — | `nonprod`, `prod` or `infrastructure`: allocate from IPAM (see below) |
-| `ipam_pool_id` | — | Pin the pool by ID instead of finding it by description |
-| `netmask` | `18` | Size of the VPC, `/17` to `/22` |
+| `segment` | from the tier | Only `shared` may be set (the tooling VPC); `prod` → production, `sandbox`/`stage`/`uat` → non-production |
+| `ipam_pool_id` | the region's pool for the segment | Pin the pool by ID |
+| `netmask` | `spec.vpc_netmask`, else sandbox `20`, others `18` | Size of the VPC, `/17` to `/22` |
 | `azs` | — | Exactly 3 |
-| `enable_nat_gateway` | `false` | Per-VPC cost — on for the default VPC, usually off elsewhere |
+| `enable_nat_gateway` | `false` central, `true` independent | Follows the platform's `egress_mode` |
 | `single_nat_gateway` | `true` | |
 | `enable_vpn_gateway` | `false` | Attaches a VGW to the VPC |
-| `tgw_route_table_id` | resolved per region | Override the TGW route table to associate with |
-| `tgw_propagation_route_table_id` | resolved per region | Override the table routes propagate into |
+| `enable_tgw_attachment` | `true` | Every VPC joins its region's transit gateway |
+| `tgw_destination_cidrs` | central `0.0.0.0/0`; independent `address_space` + `onprem_cidrs` | Private routes toward the transit gateway |
 | `enable_vpc_endpoints` | `false` | Per-VPC cost: ~15 interface endpoints × AZ. Interface endpoints do not span VPCs |
 | `enable_elb_subnet_tags` | `false` | Load balancer subnet discovery tags — see below. Turn on before any load balancer exists in the VPC |
 | `endpoint_services` | 15 common services | Includes `s3`, created as a gateway endpoint |
@@ -83,9 +82,9 @@ There is no literal `cidr` or subnet list: a VPC carrying `cidr`,
 rejected at plan. Addresses come from IPAM only, and IPAM's atomic allocation is
 what keeps VPCs from overlapping.
 
-**Cost note.** Endpoints and NAT gateways are billed per VPC and default to off
-for that reason. Isolated VPCs created for testing should normally stay lean and
-reach shared services over the transit gateway.
+**Cost note.** Endpoints are billed per VPC and default to off for that
+reason. In central egress mode NAT is the region's egress VPC, shared by every
+environment.
 
 ## Tests
 
@@ -93,27 +92,16 @@ reach shared services over the transit gateway.
 terraform init -backend=false && terraform test
 ```
 
-Mock providers; no AWS access. `ipam_pool_id` in the fixtures stands in for the
-pool lookup, whose `id` a mock provider cannot populate.
+Mock providers; no AWS access. The networking `region` unit's state is
+overridden with fixed transit gateway, table and pool IDs.
 
 ## VPCs from IPAM
 
-New VPCs do not pick a CIDR. They name a tier and IPAM hands out the next free
-block from the pool shared to the account:
+New VPCs do not pick a CIDR. IPAM hands out the next free block from the
+region's pool for the VPC's segment (the networking `region` unit's
+`pool_ids`, shared with the organisation).
 
-```json
-"vpcs": {
-  "vpc-1": { "pool": "nonprod", "azs": ["eu-west-1a", "eu-west-1b", "eu-west-1c"] }
-}
-```
-
-- `pool` is the tier. The module finds the pool shared to this account by its
-  description, `<tier>/<region>` (e.g. `nonprod/eu-west-1`). An account only
-  sees the pools shared to its OU: `workloads/nonprod` sees `nonprod`,
-  `workloads/production` sees `prod`, `infrastructure` sees
-  `infrastructure`. The pools themselves are managed in `infrastructure/terraform`
-  (`aws-mgmt/eu-west-1/ipam`).
-- `netmask` defaults to `/18`. The block is claimed first
+- `netmask` defaults to the tier's size. The block is claimed first
   (`aws_vpc_ipam_pool_cidr_allocation`), then the VPC is created with that exact
   CIDR and its subnets carved from it. The allocation is atomic, so any number
   of accounts sharing a pool can apply at the same time without racing for a
@@ -131,8 +119,9 @@ block from the pool shared to the account:
   | public | sixty-fourths 60–62 | 3 × `/24` |
 
   The last sixty-fourth is left free.
-- Routing needs no per-VPC change: each tier is one summary route on the
-  transit gateways and Direct Connect (`aws-transit-gateway`).
+- Routing needs no per-VPC change: a region's share of each segment is one
+  block, routed as one prefix by every peering, and each segment is one
+  summary on Direct Connect.
 
 ## Load balancer subnet tags
 
@@ -231,103 +220,50 @@ and investigate. Renames are in-place `Name`-tag updates; the one exception is
 the VPC-endpoint security group, whose `name` cannot change in place, so it is
 replaced and the interface endpoints are updated to point at the new one.
 
-## Transit Gateway architecture
+## Joining the region's network
 
-All TGWs live in the networking account and are managed by the
-`aws-transit-gateway` repo. This module runs with the workload account's
-credentials and reaches into the networking account through two provider
-aliases in `providers.tf`, both assuming the networking account's deploy role
-(`arn:aws:iam::<spec.providers.network.account_id>:role/Terraform-Role`):
+The transit gateways, their route tables and the peerings belong to the
+networking account (`networking/` layer). This module runs with the workload
+account's credentials and reaches the networking account through the
+`aws.network` provider (its deploy role,
+`arn:aws:iam::<spec.providers.network.account_id>:role/Terraform-Role`), which
+makes the associations and propagations.
 
-- `aws.network` — networking account, **same region** as the deployment
-- `aws.network_dublin` — networking account, pinned to **eu-west-1**
+It reads the region's facts from the networking state:
+`spec.providers.network.state_bucket`, key
+`platform-network/<region>/region/terraform.tfstate`, assuming the same role.
+Without `spec.network` and `spec.providers.network`, or before the region's
+network exists, the plan fails with that instruction.
 
-Networking-account facts are read from its remote state:
-`spec.providers.network.state_bucket`, key `<region>/terraform.tfstate` — the
-read itself assumes the networking role (plain workload credentials get 403 on
-that bucket). Enabling a transit-gateway feature without `account_id` and
-`state_bucket` fails the plan at the attachment. Outputs are prefixed per region:
-
-| Region | Output prefix | Peering-map key in Dublin's state |
+| Segment | Associated with | Propagates into |
 |---|---|---|
-| eu-west-1 (Dublin, hub) | `dublin` | — |
-| eu-central-1 | `frankfurt` | `frankfurt` |
-| sa-east-1 | `sao_paulo` | `saopaulo` (note: no underscore) |
-| ap-northeast-2 | `seoul` | absent — resolved from Seoul's own state |
+| production | `production` | `production`, `shared` |
+| non-production | `non-production` | `non-production`, `shared` |
+| shared (tooling) | `shared` | all three |
 
-The FortiGate/VPN sits in the Dublin transit-hub VPC (`10.33.96.0/19`,
-attachment associated with the Dublin hub route table
-`transit-hub-eu-west-1`). Cross-region traffic rides TGW **peering**
-attachments, and routes never propagate across peering — both directions need
-static routes.
+Production and non-production never see each other's routes; the region's
+blackholes drop anything that tries.
 
-## Config flags (TGW-related)
+## Egress
 
-Set these per VPC — or in `vpc_defaults` when every VPC in the account shares
-them, which is the usual case. Defaults come from `vpc_defaults` in the module's
-`locals.tf`; note `enable_tgw_propagation` defaults to **false** there.
+The platform's `egress_mode` decides:
 
-`tgw_id` and the route-table overrides are resolved per VPC, so one VPC can be
-pinned to a different transit gateway without moving the others. `enable_tgw_share`
-and `tgw_peering_return_cidrs` drive account/region-level resources: they are
-created once if *any* VPC asks for them, and the return CIDRs are deduplicated
-across VPCs.
+- **central**: no NAT gateway; private default route to the transit gateway,
+  out through the region's egress VPC.
+- **independent**: the VPC's own NAT gateway; only `address_space` and
+  `onprem_cidrs` go to the transit gateway.
 
-| Flag | Default | Purpose |
-|---|---|---|
-| `enable_tgw_attachment` | `false` | Attach the VPC to the regional TGW |
-| `enable_tgw_association` | `true` | Associate the attachment with the regional hub route table |
-| `enable_tgw_propagation` | `false` | Propagate the attachment into the hub route table — **required for the FortiGate (and anything else on the hub RT) to reach this VPC** |
-| `enable_tgw_share` | `false` | RAM-share the regional TGW from the networking account to this account (share, resource + principal association via `aws.network`, accepter in the workload account; org-wide RAM auto-accept is NOT enabled). Skip or import first where a manual share already exists |
-| `enable_tgw_peering_routes` | `false` | Non-Dublin regions only (no-op in eu-west-1): static route in the **Dublin hub RT** for this VPC's CIDR via the region's peering attachment (`aws.network_dublin`), plus return routes below |
-| `tgw_peering_return_cidrs` | `[]` | With peering routes: Dublin-side CIDRs (e.g. `10.33.96.0/19`, the FortiGate/hub VPC) routed back via peering from the regional TGW RT |
-| `tgw_destination_cidrs` | `[]` | Routes in this VPC's private route table toward the TGW (typically `10.0.0.0/8`, `172.16.0.0/12`) |
-| `tgw_id`, `tgw_route_table_id`, `tgw_propagation_route_table_id` | `null` | Direct overrides; when unset they resolve from the networking remote state |
-
-The peering attachment ID resolves automatically: first from the region's own
-state output `<prefix>_tgw_peering_attachment_ids["dublin"]`, then from
-Dublin's `dublin_tgw_peering_attachment_ids[<key>]` (see table above). If
-neither has it, the plan fails with a precondition — the peering must first be
-created in `aws-transit-gateway`.
-
-## Full path: FortiGate/VPN → workload VPC (e.g. EKS)
-
-Same region as the FortiGate (Dublin deployments, e.g. sandbox-2):
-
-1. FortiGate VPC route table has a prefix covering the workload CIDR → TGW
-   (`10.32.0.0/16` and others already exist) — manual, in the networking account.
-2. Workload attachment associated with the hub RT — `enable_tgw_association`.
-3. Hub RT has a route to the workload VPC — **`enable_tgw_propagation`**.
-4. Return: workload VPC routes to Dublin ranges — `tgw_destination_cidrs`;
-   hub RT already has a static `10.33.96.0/19` route back to the hub VPC.
-
-Other regions (Frankfurt, São Paulo, Seoul) add on top:
-
-5. Dublin hub RT static route: workload CIDR → peering — `enable_tgw_peering_routes`.
-6. Regional TGW RT static return route: Dublin CIDRs → peering — `tgw_peering_return_cidrs`.
-7. FortiGate VPC route table must still cover the workload CIDR (step 1);
-   add it manually if the CIDR is outside the already-routed prefixes.
-
-After routing works, remaining suspects for EKS access are application-layer:
-private endpoint access and security-group rules permitting the VPN source
-range (usually within `10.33.96.0/19`).
+Either way the VPC keeps its public subnets and internet gateway for inbound
+load balancers.
 
 ## Troubleshooting
 
-- **403 on `eu-west-1/terraform.tfstate` during plan** — the remote-state read
-  is running without the networking-account role; the `assume_role` block in
-  `data.tf` must be present (the pipeline's stage role has no direct access to
-  the networking state bucket or its KMS key).
-- **FortiGate can't reach a VPC whose attachment exists** — check propagation:
-  the attachment can be associated with the hub RT yet absent from its
-  propagations (`enable_tgw_propagation` unset in the environment JSON falls
-  back to the root default of `false`).
-- **Peering-route precondition fails** — the region has no Dublin peering
-  attachment in either state; create the peering in `aws-transit-gateway`
-  first.
-- **Duplicate RAM share / route conflicts** — some environments have manually
-  created shares and static routes (e.g. the Dublin hub RT's `10.33.96.0/19`);
-  import or delete the manual resource before enabling the corresponding flag.
+- **403 on the networking state during plan**: the remote-state read is
+  running without the networking-account role; the `assume_role` block in
+  `data.tf` must be present.
+- **"No transit gateway / pool for <region>"**: the region's network does not
+  exist yet. Backstage creates it before the first environment; by hand, see
+  [`../../../networking/README.md`](../../../networking/README.md).
 
 ## Running it
 
@@ -336,8 +272,8 @@ range (usually within `10.33.96.0/19`).
 **Needs:**
 
 - The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
-- An **IPAM pool** to allocate from (`spec.vpcs.<name>.pool` or `ipam_pool_id`): the networking foundation, not built yet.
-- Transit gateway features only: the networking account (`spec.providers.network.account_id` and `.state_bucket`) and its state.
+- The region's network: the networking `region` unit applied in this region (Backstage does it on the region's first environment).
+- The networking account (`spec.providers.network.account_id` and `.state_bucket`) and the platform settings (`spec.network`).
 
 **Access** (the workflow has all of this; locally you need it too):
 
@@ -366,7 +302,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/core-network.yaml -var pipeline_user=$USER
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`pool_vpc_plans`, `literal_cidr_rejected`, `tgw_requires_network_provider`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (segment per tier and the shared override, central and independent egress, shared Resolver rules, literal CIDRs and a missing network rejected).
 
 ### Outputs
 

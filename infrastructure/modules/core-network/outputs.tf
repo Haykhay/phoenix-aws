@@ -2,6 +2,7 @@ locals {
   networks = {
     for vpc_name, vpc in local.vpcs : vpc_name => {
       name                = vpc.name
+      segment             = vpc.segment
       vpc_id              = module.vpc[vpc_name].vpc_id
       vpc_cidr_block      = module.vpc[vpc_name].vpc_cidr_block
       azs                 = vpc.azs
@@ -136,7 +137,7 @@ output "resource_summary" {
     vpcs = {
       for vpc_name, vpc in local.vpcs : vpc_name => {
         cidr                     = module.vpc[vpc_name].vpc_cidr_block
-        ipam_pool                = vpc.pool
+        segment                  = vpc.segment
         private_subnet_count     = length(local.private_subnets_all[vpc_name])
         public_subnet_count      = length(local.subnets[vpc_name].public)
         platform_subnet_count    = length(local.subnets[vpc_name].platform)

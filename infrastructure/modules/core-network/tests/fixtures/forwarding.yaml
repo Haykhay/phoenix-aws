@@ -1,0 +1,25 @@
+organisation: acme
+group: research
+environment: sandbox
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec:
+  network:
+    hub_regions: [eu-west-1]
+    egress_mode: central
+    onprem_cidrs: [192.168.0.0/16]
+    dns_forwarding: { corp.local: [192.168.1.10] }
+  providers:
+    network: { account_id: "222222222222", state_bucket: acme-tfstate-222222222222, state_region: eu-west-1 }
+  vpcs:
+    vpc-1:
+      azs: [eu-west-1a, eu-west-1b, eu-west-1c]

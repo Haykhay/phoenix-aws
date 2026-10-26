@@ -13,11 +13,13 @@ tags:
   Reason: model evaluation
   LongLive: false
 spec:
+  network:
+    hub_regions: [eu-west-1]
+    egress_mode: central
+    onprem_cidrs: [192.168.0.0/16]
+  providers:
+    network: { account_id: "222222222222", state_bucket: acme-tfstate-222222222222, state_region: eu-west-1 }
   vpcs:
     vpc-1:
-      pool: nonprod
-      ipam_pool_id: ipam-pool-0123456789abcdef0
       azs: [eu-west-1a, eu-west-1b, eu-west-1c]
-      enable_tgw_attachment: true
-      tgw_id: tgw-0123456789abcdef0
-      tgw_route_table_id: tgw-rtb-0123456789abcdef0
+      segment: production
