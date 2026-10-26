@@ -25,6 +25,19 @@ resource "terraform_data" "validation" {
       condition     = length(distinct([for vpc_name, vpc in local.vpcs : vpc.name])) == length(local.vpcs)
       error_message = "Every VPC needs a unique name. Set `name` per VPC rather than in vpc_defaults, or leave it unset to derive it from the map key."
     }
+    precondition {
+      condition     = local.network_configured
+      error_message = "core-network needs spec.network (the platform settings) and spec.providers.network.account_id and .state_bucket: every VPC joins its region's network."
+    }
+    # A tier never picks the other segment: the only override is shared.
+    precondition {
+      condition     = alltrue([for vpc_name, vpc in local.merged_vpcs : vpc.segment == null || vpc.segment == "shared"])
+      error_message = "A VPC's `segment` may only be set to shared (the tooling VPC); otherwise the tier decides it."
+    }
+    precondition {
+      condition     = alltrue([for vpc_name, vpc in local.vpcs : vpc.netmask >= 17 && vpc.netmask <= 22])
+      error_message = "A VPC's netmask must be /17 to /22."
+    }
   }
 }
 
@@ -43,7 +56,7 @@ resource "terraform_data" "vpc_created_by" {
 resource "aws_vpc_ipam_pool_cidr_allocation" "this" {
   for_each = local.vpcs
 
-  ipam_pool_id   = each.value.ipam_pool_id != null ? each.value.ipam_pool_id : try(data.aws_vpc_ipam_pool.this[each.key].id, null)
+  ipam_pool_id   = each.value.ipam_pool_id != null ? each.value.ipam_pool_id : try(local.region_state.pool_ids[each.value.segment], null)
   netmask_length = each.value.netmask
   description    = "${each.value.name} (${local.environment}, account ${data.aws_caller_identity.current.account_id})"
 
@@ -52,8 +65,12 @@ resource "aws_vpc_ipam_pool_cidr_allocation" "this" {
   # instead of a missing-argument error.
   lifecycle {
     precondition {
-      condition     = (each.value.pool != null || each.value.ipam_pool_id != null) && length(setintersection(keys(each.value), local.literal_network_keys)) == 0
-      error_message = "VPC ${each.key} needs `pool` or `ipam_pool_id` (IPAM) and no literal network keys (${join(", ", local.literal_network_keys)}): addresses come from IPAM only."
+      condition     = length(setintersection(keys(each.value), local.literal_network_keys)) == 0
+      error_message = "VPC ${each.key} has literal network keys (${join(", ", local.literal_network_keys)}): addresses come from IPAM only."
+    }
+    precondition {
+      condition     = each.value.ipam_pool_id != null || try(local.region_state.pool_ids[each.value.segment], null) != null
+      error_message = "No ${each.value.segment} pool for ${local.region}: the region's network (networking `region` unit) does not exist yet."
     }
   }
 }
@@ -195,54 +212,20 @@ resource "aws_vpc_endpoint" "interface" {
   })
 }
 
-# The transit gateway is shared to the account once, not once per VPC.
-resource "aws_ram_resource_share" "tgw" {
-  provider = aws.network
-  count    = local.create_tgw_share ? 1 : 0
-
-  name                      = "${local.name_prefix}-tgw"
-  allow_external_principals = true
-
-  tags = {
-    Name = "${local.name_prefix}-tgw"
-  }
-}
-
-resource "aws_ram_resource_association" "tgw" {
-  provider = aws.network
-  count    = local.create_tgw_share ? 1 : 0
-
-  resource_arn       = data.aws_ec2_transit_gateway.shared[0].arn
-  resource_share_arn = aws_ram_resource_share.tgw[0].arn
-}
-
-resource "aws_ram_principal_association" "tgw" {
-  provider = aws.network
-  count    = local.create_tgw_share ? 1 : 0
-
-  principal          = data.aws_caller_identity.current.account_id
-  resource_share_arn = aws_ram_resource_share.tgw[0].arn
-}
-
+# The region unit shares its transit gateway with the organisation and
+# auto-accepts attachments; association and propagation are made here, from
+# the networking account.
 resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
   for_each = local.tgw_vpcs
 
   subnet_ids         = local.data_subnet_ids[each.key]
-  transit_gateway_id = local.resolved_tgw_id[each.key]
+  transit_gateway_id = local.tgw_id
   vpc_id             = module.vpc[each.key].vpc_id
-
-  depends_on = [
-    aws_ram_resource_association.tgw,
-  ]
 
   lifecycle {
     precondition {
-      condition     = local.network_configured
-      error_message = "VPC ${each.key} enables a transit gateway feature but spec.providers.network.account_id and .state_bucket are not both set: the networking account cannot be reached."
-    }
-    precondition {
-      condition     = local.resolved_tgw_id[each.key] != null
-      error_message = "Unable to resolve a transit gateway ID for region ${local.region}. Set the VPC's tgw_id explicitly or add region support in modules/core-network/data.tf."
+      condition     = local.tgw_id != null
+      error_message = "No transit gateway for ${local.region}: the region's network (networking `region` unit) does not exist yet."
     }
   }
 
@@ -254,72 +237,18 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
 
 resource "aws_ec2_transit_gateway_route_table_association" "this" {
   provider = aws.network
-  for_each = local.tgw_association_vpcs
+  for_each = local.tgw_vpcs
 
   transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.this[each.key].id
-  transit_gateway_route_table_id = local.resolved_tgw_route_table_id[each.key]
-
-  lifecycle {
-    precondition {
-      condition     = local.resolved_tgw_route_table_id[each.key] != null
-      error_message = "Unable to resolve a transit gateway route table ID for region ${local.region}. Set the VPC's tgw_route_table_id explicitly or add region support in modules/core-network/data.tf."
-    }
-  }
+  transit_gateway_route_table_id = local.region_state.route_table_ids[each.value.segment]
 }
 
 resource "aws_ec2_transit_gateway_route_table_propagation" "this" {
   provider = aws.network
-  for_each = local.tgw_propagation_vpcs
+  for_each = local.tgw_propagations
 
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.this[each.key].id
-  transit_gateway_route_table_id = local.resolved_tgw_propagation_route_table_id[each.key]
-
-  lifecycle {
-    precondition {
-      condition     = local.resolved_tgw_propagation_route_table_id[each.key] != null
-      error_message = "Unable to resolve a transit gateway propagation route table ID for region ${local.region}. Set the VPC's tgw_propagation_route_table_id explicitly or add region support in modules/core-network/data.tf."
-    }
-  }
-}
-
-resource "aws_ec2_transit_gateway_route" "dublin_to_vpc" {
-  provider = aws.network_dublin
-  for_each = local.peering_route_vpcs
-
-  destination_cidr_block         = module.vpc[each.key].vpc_cidr_block
-  transit_gateway_attachment_id  = local.dublin_peering_attachment_id
-  transit_gateway_route_table_id = local.dublin_hub_route_table_id
-
-  lifecycle {
-    precondition {
-      condition     = local.dublin_peering_attachment_id != null
-      error_message = "No Dublin peering attachment found in the ${local.region} networks state outputs. Create the peering in <networking repo> or disable enable_tgw_peering_routes."
-    }
-    precondition {
-      condition     = local.dublin_hub_route_table_id != null
-      error_message = "Unable to read dublin_tgw_route_table_id from the eu-west-1 networks state."
-    }
-  }
-
-  depends_on = [aws_ec2_transit_gateway_vpc_attachment.this]
-}
-
-# Return routes live on the regional route table, so they are deduplicated
-# across every VPC that asked for peering rather than created per VPC.
-resource "aws_ec2_transit_gateway_route" "region_to_dublin" {
-  provider = aws.network
-  for_each = local.peering_return_cidrs
-
-  destination_cidr_block         = each.value
-  transit_gateway_attachment_id  = local.dublin_peering_attachment_id
-  transit_gateway_route_table_id = local.peering_route_table_id
-
-  lifecycle {
-    precondition {
-      condition     = local.dublin_peering_attachment_id != null
-      error_message = "No Dublin peering attachment found in the ${local.region} networks state outputs. Create the peering in <networking repo> or disable enable_tgw_peering_routes."
-    }
-  }
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.this[each.value.vpc_name].id
+  transit_gateway_route_table_id = local.region_state.route_table_ids[each.value.table]
 }
 
 resource "aws_route" "tgw_routes" {
@@ -327,11 +256,18 @@ resource "aws_route" "tgw_routes" {
 
   route_table_id         = module.vpc[each.value.vpc_name].private_route_table_ids[each.value.route_table_index]
   destination_cidr_block = each.value.cidr
-  transit_gateway_id     = local.resolved_tgw_id[each.value.vpc_name]
+  transit_gateway_id     = local.tgw_id
 
   depends_on = [
     aws_ec2_transit_gateway_vpc_attachment.this,
     aws_ec2_transit_gateway_route_table_association.this,
     aws_ec2_transit_gateway_route_table_propagation.this
   ]
+}
+
+resource "aws_route53_resolver_rule_association" "shared" {
+  for_each = local.resolver_rule_associations
+
+  resolver_rule_id = each.value.rule_id
+  vpc_id           = module.vpc[each.value.vpc_name].vpc_id
 }

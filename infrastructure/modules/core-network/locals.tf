@@ -16,20 +16,24 @@ locals {
   # Per-VPC defaults. Anything here can be overridden in `vpc_defaults` (for every
   # VPC in the environment) or on an individual entry of `vpcs`.
   #
-  # VPC endpoints and NAT gateways default to off: they are per-VPC costs
-  # (~14 interface endpoints x AZ, plus NAT hours) and only the default VPC
-  # normally warrants them. Turn them on explicitly per VPC.
+  # VPC endpoints default to off: they are a per-VPC cost (~14 interface
+  # endpoints x AZ) and only the default VPC normally warrants them. Turn them
+  # on explicitly per VPC. NAT follows the platform's egress mode: none in
+  # central mode (the region's egress VPC), the VPC's own in independent mode.
   vpc_defaults = {
-    name    = null
-    pool    = null
-    netmask = 18
+    name = null
 
-    # Pin the pool by ID instead of finding it by its "<tier>/<region>"
-    # description -- for an account that sees more than one matching pool.
+    # The tier decides the segment; the only override is `shared` (the tooling
+    # VPC). The netmask is the platform's per-tier size (`spec.vpc_netmask`,
+    # copied by Backstage), else sandbox /20 and stage/UAT/prod /18.
+    segment = null
+    netmask = try(module.context.spec.vpc_netmask, module.context.tier == "sandbox" ? 20 : 18)
+
+    # Pin the pool by ID instead of the region unit's pool for the segment.
     ipam_pool_id = null
     azs          = tolist([])
 
-    enable_nat_gateway = false
+    enable_nat_gateway = !local.central_egress
     single_nat_gateway = true
     enable_vpn_gateway = false
 
@@ -52,16 +56,13 @@ locals {
       "elasticloadbalancing",
     ])
 
-    enable_tgw_attachment          = false
-    enable_tgw_association         = true
-    enable_tgw_propagation         = false
-    enable_tgw_share               = false
-    enable_tgw_peering_routes      = false
-    tgw_id                         = null
-    tgw_route_table_id             = null
-    tgw_propagation_route_table_id = null
-    tgw_destination_cidrs          = tolist([])
-    tgw_peering_return_cidrs       = tolist([])
+    # Every VPC joins its region's transit gateway. Central egress sends
+    # everything there; independent egress only the platform and on-prem.
+    enable_tgw_attachment = true
+    tgw_destination_cidrs = local.central_egress ? ["0.0.0.0/0"] : concat(
+      [try(local.platform_network.address_space, "10.0.0.0/8")],
+      try(local.platform_network.onprem_cidrs, []),
+    )
 
     # Load balancer subnet discovery tags (see aws_ec2_tag.internal_elb).
     # Opt-in: turning it on for a VPC that already has internal load
@@ -101,7 +102,8 @@ locals {
   # main.tf requires the resulting names to be unique.
   vpcs = {
     for vpc_name, vpc in local.merged_vpcs : vpc_name => merge(vpc, {
-      name = coalesce(vpc.name, "${local.name_prefix}-${vpc_name}")
+      name    = coalesce(vpc.name, "${local.name_prefix}-${vpc_name}")
+      segment = coalesce(vpc.segment, local.tier_segments[module.context.tier])
     }) if local.config.enabled
   }
 
@@ -134,10 +136,9 @@ locals {
   # ---------------------------------------------------------------------------
   # IPAM
   #
-  # Every VPC takes its block from IPAM: `pool` + `netmask`. IPAM's atomic
-  # allocation is what keeps VPCs from overlapping. `pool` names a tier ("nonprod", "prod", "infrastructure"); the pool shared
-  # to this account for that tier and region is found by its description,
-  # "<tier>/<region>". Subnets are not configured for a pool VPC: they are
+  # Every VPC takes its block from IPAM: the region unit's pool for the VPC's
+  # segment, at `netmask`. IPAM's atomic allocation is what keeps VPCs from
+  # overlapping. Subnets are not configured: they are
   # carved from the allocated block in a fixed layout, one per AZ (3 AZs):
   #
   #   platform  quarters 0-2               (/20s in a /18): EKS nodes and pods
@@ -205,12 +206,21 @@ locals {
 
   tgw_vpcs = { for vpc_name, vpc in local.vpcs : vpc_name => vpc if vpc.enable_tgw_attachment }
 
-  tgw_association_vpcs = {
-    for vpc_name, vpc in local.tgw_vpcs : vpc_name => vpc if vpc.enable_tgw_association
+  # Association: the segment's own table. Propagation: the segment's table and
+  # shared; shared (tooling) into all three. Production never propagates into
+  # non-production, nor the reverse.
+  propagated_tables = {
+    production       = ["production", "shared"]
+    "non-production" = ["non-production", "shared"]
+    shared           = ["production", "non-production", "shared"]
   }
 
-  tgw_propagation_vpcs = {
-    for vpc_name, vpc in local.tgw_vpcs : vpc_name => vpc if vpc.enable_tgw_propagation
+  tgw_propagations = {
+    for pair in flatten([
+      for vpc_name, vpc in local.tgw_vpcs : [
+        for table in local.propagated_tables[vpc.segment] : { key = "${vpc_name}/${table}", vpc_name = vpc_name, table = table }
+      ]
+    ]) : pair.key => pair
   }
 
   # Each VPC's private subnets are created as one list, data subnets first. Split
