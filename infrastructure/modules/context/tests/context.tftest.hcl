@@ -168,3 +168,113 @@ run "network_missing_state_is_null" {
     error_message = "a missing core-network state yields no networks"
   }
 }
+
+run "any_region_gets_a_code" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/apse1.yaml"
+  }
+
+  assert {
+    condition     = output.region_code == "apse1"
+    error_message = "a region outside the old list gets its code from its direction words"
+  }
+}
+
+run "network_segments" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network.yaml"
+  }
+
+  assert {
+    condition     = output.platform_network.segments == { production = "10.0.0.0/10", "non-production" = "10.64.0.0/10", shared = "10.128.0.0/10" }
+    error_message = "three segments, in order, at segment_netmask"
+  }
+  assert {
+    condition     = output.platform_network.first_hub == "eu-west-1"
+    error_message = "first hub is hub_regions[0]"
+  }
+  assert {
+    condition     = output.platform_network.egress_mode == "central" && output.platform_network.region_netmask == 13
+    error_message = "unset settings take the platform defaults"
+  }
+}
+
+run "no_network_settings_is_null" {
+  command = plan
+
+  assert {
+    condition     = output.platform_network == null
+    error_message = "a unit without spec.network has no platform network"
+  }
+}
+
+run "instance_in_state_key" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/peering.eu-west-1.yaml"
+  }
+
+  assert {
+    condition     = output.instance == "eu-west-1"
+    error_message = "instance comes from <unit>.<instance>.yaml"
+  }
+  assert {
+    condition     = output.state_key == "platform-network/eu-central-1/core-platform.eu-west-1/terraform.tfstate"
+    error_message = "the instance is carried into the state key"
+  }
+}
+
+run "address_space_overlapping_onprem_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network_overlap.yaml"
+  }
+
+  expect_failures = [output.platform_network]
+}
+
+run "address_space_too_small_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network_small.yaml"
+  }
+
+  expect_failures = [output.platform_network]
+}
+
+run "public_address_space_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network_public.yaml"
+  }
+
+  expect_failures = [output.platform_network]
+}
+
+run "dual_dx_needs_two_hubs" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network_dual_dx_one_hub.yaml"
+  }
+
+  expect_failures = [output.platform_network]
+}
+
+run "region_netmask_inside_segment" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/network_region_netmask.yaml"
+  }
+
+  expect_failures = [output.platform_network]
+}

@@ -95,6 +95,21 @@ output "state_key" {
   value       = local.state_key
 }
 
+output "instance" {
+  description = "Instance from <unit>.<instance>.yaml; null for a singleton."
+  value       = local.instance
+}
+
+output "platform_network" {
+  description = "spec.network over the platform defaults, plus first_hub and segments {production, non-production, shared}; null without spec.network."
+  value       = local.platform_network
+
+  precondition {
+    condition     = alltrue(values(local.network_checks))
+    error_message = "spec.network is invalid; failing checks: ${join(", ", [for k, ok in local.network_checks : k if !ok])}. address_space must be RFC 1918, must not overlap onprem_cidrs and must hold four blocks at segment_netmask; region_netmask must be longer than segment_netmask; egress_mode is central|independent; hybrid is none|vpn|dx_vpn|dual_dx; 1-2 hub_regions, dual_dx needs 2."
+  }
+}
+
 output "network" {
   description = "The selected VPC from core-network's `networks` output, or null."
   value       = local.network
