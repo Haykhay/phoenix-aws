@@ -1,5 +1,6 @@
 output "cache_prefix" {
-  value = local.cache_prefix
+  description = "Pull-through cache prefix: <account>.dkr.ecr.<region>.amazonaws.com/<prefix>/... pulls through the hub."
+  value       = local.cache_prefix
 }
 
 output "registry_url_prefix" {

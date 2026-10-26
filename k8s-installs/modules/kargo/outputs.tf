@@ -1,9 +1,11 @@
 output "mode" {
-  value = local.config.enabled ? local.mode : null
+  description = "management or spoke."
+  value       = local.config.enabled ? local.mode : null
 }
 
 output "shard" {
-  value = local.shard
+  description = "This cluster's shard name (<env_id>-<cluster>)."
+  value       = local.shard
 }
 
 output "remote_kubeconfig_secret" {
@@ -12,7 +14,8 @@ output "remote_kubeconfig_secret" {
 }
 
 output "url" {
-  value = local.is_management ? "https://${local.api_host}" : null
+  description = "Kargo UI; management cluster only."
+  value       = local.is_management ? "https://${local.api_host}" : null
 }
 
 output "resource_summary" {

@@ -191,3 +191,7 @@ cd modules/<resource-set> && terraform init -backend=false && terraform test
    resources reading `module.context.spec`.
 2. `tests/<name>.tftest.hcl` with fixtures; the workflow tests it on every PR.
 3. Its place in the order above, for Backstage.
+4. A `README.md` saying what it creates and its `spec`, then a **Running it**
+   section like every other module's: what must exist first, the unit file and
+   state key, how to run it, its outputs (every output has a `description`),
+   and what to destroy before it.

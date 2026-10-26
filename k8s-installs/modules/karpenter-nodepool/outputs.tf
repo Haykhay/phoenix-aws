@@ -1,5 +1,6 @@
 output "node_pool" {
-  value = local.pool_name
+  description = "NodePool name (gpu-<type>)."
+  value       = local.pool_name
 }
 
 output "node_selector" {

@@ -9,19 +9,23 @@ output "spec" {
 }
 
 output "organisation" {
-  value = local.organisation
+  description = "organisation from the YAML."
+  value       = local.organisation
 }
 
 output "group" {
-  value = local.group
+  description = "group from the YAML."
+  value       = local.group
 }
 
 output "requester" {
-  value = local.requester
+  description = "requester from the YAML; null for a shared environment."
+  value       = local.requester
 }
 
 output "environment" {
-  value = local.environment
+  description = "environment from the YAML."
+  value       = local.environment
 }
 
 output "env_id" {
@@ -30,7 +34,8 @@ output "env_id" {
 }
 
 output "tier" {
-  value = local.tier
+  description = "sandbox, stage, uat or prod."
+  value       = local.tier
 }
 
 output "scope" {
@@ -44,11 +49,13 @@ output "region" {
 }
 
 output "account_id" {
-  value = tostring(local.config.account_id)
+  description = "The unit's AWS account ID."
+  value       = tostring(local.config.account_id)
 }
 
 output "region_code" {
-  value = local.region_code
+  description = "Short region code (euw1); null in the global scope."
+  value       = local.region_code
 }
 
 output "name_prefix" {
@@ -104,5 +111,6 @@ output "role_name" {
 }
 
 output "pipeline_user" {
-  value = var.pipeline_user
+  description = "Who ran the pipeline (GITHUB_ACTOR)."
+  value       = var.pipeline_user
 }

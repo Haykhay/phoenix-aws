@@ -21,3 +21,62 @@ does). Pools consolidate when empty after 5 minutes, so idle GPUs go away.
 
 Needs the cluster's `karpenter` unit (controller + CRDs) applied first, and the
 `nvidia-gpu-operator` unit for the GPUs to be schedulable.
+
+## Running it
+
+### Before you run it
+
+**Infrastructure units**, applied first:
+
+- `core-platform` for the environment and region: the cluster this unit targets (the plan fails without it)
+- `core-platform` with `clusters.<cluster>.karpenter.enabled: true`
+
+**Cluster components**, applied first on the same cluster (Backstage orders them from the catalog's `dependsOn`):
+
+- `karpenter`
+
+**You provide:**
+
+- `spec.instance_families` (Backstage fills it from the `phoenix-gpu` entity; the plan fails without it).
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15 and the `aws` CLI: the helm and kubernetes providers fetch an EKS token per call (`aws eks get-token`).
+- Credentials for `Terraform-Role` in the unit's account, and the account's state bucket.
+- Network reach to the cluster's **private** API endpoint: in the pipeline that is the `phoenix-mgmt` self-hosted runner in the management VPC.
+
+### The unit file
+
+```text
+k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/karpenter-nodepool.<gpu-type>.yaml
+state: <env_id>/<region>/k8s/<cluster>/karpenter-nodepool.<gpu-type>/terraform.tfstate
+```
+
+One file per GPU type: `karpenter-nodepool.<gpu-type>.yaml`; the instance name is lowercase letters, digits and hyphens, and keeps two instances apart. The identity block is the same as every unit's (see [`../../README.md`](../../README.md#a-units-yaml)); `spec` is described above. `spec.enabled: false` plans nothing.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd k8s-installs/modules/karpenter-nodepool
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/k8s/<cluster>/karpenter-nodepool.<gpu-type>/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/karpenter-nodepool.<gpu-type>.yaml
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`gpu_pool_from_instance`, `two_gpu_types_do_not_collide`, `families_required`, `disabled_plans_nothing`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `node_pool` | NodePool name (gpu-<type>). |
+| `node_selector` | What a GPU workload sets to land on this pool (plus a toleration for nvidia.com/gpu). |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Destroy these first, on the same cluster: `vllm`. Backstage destroys in reverse install order.

@@ -77,3 +77,58 @@ environment teardown.
 ```bash
 terraform init -backend=false && terraform test
 ```
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- `tags.LongLive: true` (the plan fails without it): it outlives every sandbox. Usually applied once per group and region in `<group>-shared`.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/observability.yaml
+state: <env_id>/<region>/observability/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/observability
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/observability/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/observability.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`bucket_named_per_account`, `retention_per_signal`, `retention_override`, `writer_scoped_to_cluster`, `pod_identity_trust`, `requires_longlive`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `bucket_name` | Bucket holding <signal>/<cluster name>/... for every cluster in the account. |
+| `bucket_arn` | The observability bucket's ARN. |
+| `kms_key_arn` | KMS key encrypting the bucket. |
+| `writer_role_arns` | Pod Identity role per signal: mimir, loki, tempo, langfuse. |
+| `grafana_cloudwatch_role_arn` | Pod Identity role for Grafana's CloudWatch data source. |
+| `signal_prefixes` | Leading S3 prefix per signal; a cluster writes under <prefix><cluster name>/. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: core-platform (Pod Identity bindings), grafana-stack, langfuse. Destroy those first.

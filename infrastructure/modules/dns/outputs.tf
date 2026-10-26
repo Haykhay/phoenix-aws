@@ -16,17 +16,21 @@ output "zone_names" {
 }
 
 output "public_zone_id" {
-  value = local.single_zone_key != null ? local.zone_ids[local.single_zone_key].public : null
+  description = "With one zone only: public zone ID."
+  value       = local.single_zone_key != null ? local.zone_ids[local.single_zone_key].public : null
 }
 
 output "public_zone_name" {
-  value = local.single_zone_key != null ? local.zones[local.single_zone_key].public_zone_name : null
+  description = "With one zone only: public zone name."
+  value       = local.single_zone_key != null ? local.zones[local.single_zone_key].public_zone_name : null
 }
 
 output "internal_zone_id" {
-  value = local.single_zone_key != null ? local.zone_ids[local.single_zone_key].internal : null
+  description = "With one zone only: internal (private) zone ID."
+  value       = local.single_zone_key != null ? local.zone_ids[local.single_zone_key].internal : null
 }
 
 output "internal_zone_name" {
-  value = local.single_zone_key != null ? local.zones[local.single_zone_key].internal_zone_name : null
+  description = "With one zone only: internal zone name."
+  value       = local.single_zone_key != null ? local.zones[local.single_zone_key].internal_zone_name : null
 }

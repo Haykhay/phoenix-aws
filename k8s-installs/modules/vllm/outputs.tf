@@ -4,7 +4,8 @@ output "endpoint" {
 }
 
 output "model" {
-  value = local.config.model
+  description = "Hugging Face ID of the model served."
+  value       = local.config.model
 }
 
 output "resource_summary" {

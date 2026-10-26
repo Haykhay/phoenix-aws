@@ -1,21 +1,26 @@
 output "kyverno_release_name" {
-  value = try(helm_release.kyverno[0].name, null)
+  description = "Kyverno's Helm release name."
+  value       = try(helm_release.kyverno[0].name, null)
 }
 
 output "kyverno_policies_release_name" {
-  value = try(helm_release.kyverno_policies[0].name, null)
+  description = "The policies chart's Helm release name."
+  value       = try(helm_release.kyverno_policies[0].name, null)
 }
 
 output "kyverno_namespace" {
-  value = try(helm_release.kyverno[0].namespace, null)
+  description = "Namespace Kyverno runs in."
+  value       = try(helm_release.kyverno[0].namespace, null)
 }
 
 output "kyverno_policies_namespace" {
-  value = try(helm_release.kyverno_policies[0].namespace, null)
+  description = "Namespace of the policies release."
+  value       = try(helm_release.kyverno_policies[0].namespace, null)
 }
 
 output "chart_version" {
-  value = local.config.chart_version
+  description = "Chart version installed."
+  value       = local.config.chart_version
 }
 
 output "resource_summary" {

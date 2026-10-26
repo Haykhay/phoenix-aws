@@ -1,5 +1,6 @@
 output "role_arn" {
-  value = try(aws_iam_role.this[0].arn, null)
+  description = "IAM role its service account uses, through Pod Identity."
+  value       = try(aws_iam_role.this[0].arn, null)
 }
 
 output "zone_ids" {

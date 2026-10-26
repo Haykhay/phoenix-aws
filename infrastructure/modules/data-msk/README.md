@@ -172,3 +172,60 @@ Services that were using the old SCRAM credentials need to:
 1. Switch their Kafka client config (see above).
 2. Ensure their EKS pod has an IAM role (via Pod Identity or IRSA) with the MSK resource policy applied.
 3. Remove any code that reads the old `AmazonMSK_*` secrets.
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- `core-network` (the plan fails without it).
+- `core-platform`, so the clusters' node security group may connect.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/data-msk.yaml
+state: <env_id>/<region>/data-msk/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/data-msk
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/data-msk/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/data-msk.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_in_selected_vpc`, `eks_binding_required`, `secret_path_uses_organisation`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `clusters` | Every MSK cluster in this resource set, keyed by its config name. |
+| `default_cluster_name` | Config key of the cluster the flat outputs resolve to. |
+| `cluster_names` | Keys of the MSK clusters. |
+| `bootstrap_brokers_sasl_iam` | Default cluster: IAM-auth bootstrap brokers. |
+| `secret_arn` | ARN of the connection-info secret (bootstrap brokers) |
+| `kms_key_arn` | Default cluster: KMS key ARN. |
+| `security_group_id` | Default cluster: security group ID. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: applications, through the SCRAM secrets it publishes. Destroy those first.

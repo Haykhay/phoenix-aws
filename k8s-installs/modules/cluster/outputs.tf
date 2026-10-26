@@ -1,9 +1,11 @@
 output "cluster_name" {
-  value = local.cluster_name
+  description = "EKS cluster name."
+  value       = local.cluster_name
 }
 
 output "cluster_endpoint" {
-  value = try(local.cluster.cluster_endpoint, "https://cluster-missing.invalid")
+  description = "API endpoint; a placeholder when core-platform has no such cluster (the plan then fails)."
+  value       = try(local.cluster.cluster_endpoint, "https://cluster-missing.invalid")
 }
 
 output "cluster_ca_data" {
@@ -12,11 +14,13 @@ output "cluster_ca_data" {
 }
 
 output "cluster_kms_key_arn" {
-  value = try(local.cluster.cluster_kms_key_arn, null)
+  description = "The cluster's KMS key."
+  value       = try(local.cluster.cluster_kms_key_arn, null)
 }
 
 output "vpc_id" {
-  value = try(local.cluster.vpc_id, null)
+  description = "The cluster's VPC."
+  value       = try(local.cluster.vpc_id, null)
 }
 
 output "node_subnet_ids" {
@@ -30,7 +34,8 @@ output "cluster_security_group_id" {
 }
 
 output "node_security_group_id" {
-  value = try(local.cluster.node_security_group_id, null)
+  description = "Node security group ID."
+  value       = try(local.cluster.node_security_group_id, null)
 }
 
 output "karpenter" {

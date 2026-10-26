@@ -104,3 +104,58 @@ Each instance gets a Secrets Manager secret at:
 Consumers read that path rather than being handed credentials — see
 k8s-installs' Keycloak module for an example of the `incluster` vs `rds`
 binding.
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- `core-network` (subnets; the plan fails without it).
+- `core-platform`, so the clusters' node security group may connect (`eks_clusters` names which, when there are several).
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/data-rds.yaml
+state: <env_id>/<region>/data-rds/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/data-rds
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/data-rds/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/data-rds.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_in_selected_vpc`, `eks_binding_required`, `eks_binding_named`, `minimal_instance_plans`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `instance_names` | Keys of the RDS instances. |
+| `rds` | RDS connection info |
+| `secret_arns` | Connection secret ARN, by instance. |
+| `kms_key_arns` | KMS key ARN, by instance. |
+| `security_group_ids` | Security group ID, by instance. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: applications, through the secrets published under `<organisation>/<env_id>/postgres/`. Destroy those first.

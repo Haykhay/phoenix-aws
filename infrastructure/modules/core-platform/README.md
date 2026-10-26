@@ -306,3 +306,65 @@ group ingress, so it is required once more than one cluster exists.
 `node_security_group_id`, ...), which exist for consumers that predate the
 `clusters` map — currently the in-cluster repo. It is optional with one cluster and
 required with more, and disappears once those consumers index `clusters` by name.
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- `core-network` for the same environment and region (the plan fails without it).
+- With `spec.observability.enabled: true`: `observability` in `<group>-shared`, same region.
+- Your admin principals for `spec.clusters.<key>.access_entries` (who gets `kubectl` access).
+- The management VPC's runner range in `ci_runners_cidr`, so the `phoenix-mgmt` runner can reach the private endpoint.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/core-platform.yaml
+state: <env_id>/<region>/core-platform/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/core-platform
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/core-platform/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/core-platform.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`cluster_in_selected_vpc`, `gpu_node_group_passthrough`, `observability_associations`, `observability_disabled`, `network_missing_rejected`, `shared_addon_pin_rejected`, `personal_environment_names_fit`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `clusters` | Every cluster in this resource set, keyed by its config name. |
+| `default_cluster_name` | Config key of the cluster consumers bind to when they name none. |
+| `cluster_names` | Config keys of every cluster in this resource set. |
+| `cluster_name` | Default cluster: name. |
+| `cluster_id` | Default cluster: ID. |
+| `cluster_arn` | Default cluster: ARN. |
+| `cluster_endpoint` | Default cluster: API endpoint (private). |
+| `cluster_certificate_authority_data` | Default cluster: CA data (sensitive). |
+| `cluster_kms_key_arn` | Default cluster: KMS key for secrets encryption. |
+| `node_security_group_id` | Default cluster: node security group ID. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: every k8s-installs component (through `modules/cluster`), data-rds, data-elasticache, data-msk. Destroy those first.

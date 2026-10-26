@@ -27,13 +27,15 @@ output "default_cluster_name" {
 }
 
 output "cluster_names" {
-  value = keys(local.clusters)
+  description = "Keys of the MSK clusters."
+  value       = keys(local.clusters)
 }
 
 # --- Deprecated single-cluster shims ---
 
 output "bootstrap_brokers_sasl_iam" {
-  value = local.config.enabled ? module.msk[local.default_cluster_name].bootstrap_brokers_sasl_iam : null
+  description = "Default cluster: IAM-auth bootstrap brokers."
+  value       = local.config.enabled ? module.msk[local.default_cluster_name].bootstrap_brokers_sasl_iam : null
 }
 
 output "secret_arn" {
@@ -42,11 +44,13 @@ output "secret_arn" {
 }
 
 output "kms_key_arn" {
-  value = local.config.enabled ? aws_kms_key.msk[local.default_cluster_name].arn : null
+  description = "Default cluster: KMS key ARN."
+  value       = local.config.enabled ? aws_kms_key.msk[local.default_cluster_name].arn : null
 }
 
 output "security_group_id" {
-  value = local.config.enabled ? aws_security_group.msk[local.default_cluster_name].id : null
+  description = "Default cluster: security group ID."
+  value       = local.config.enabled ? aws_security_group.msk[local.default_cluster_name].id : null
 }
 
 output "resource_summary" {

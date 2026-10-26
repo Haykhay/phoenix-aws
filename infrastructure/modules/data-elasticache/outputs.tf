@@ -1,5 +1,6 @@
 output "cluster_names" {
-  value = keys(local.elasticache_clusters)
+  description = "Keys of the replication groups."
+  value       = keys(local.elasticache_clusters)
 }
 
 output "elasticache" {
@@ -15,18 +16,21 @@ output "elasticache" {
 }
 
 output "secret_arns" {
+  description = "Connection secret ARN, by replication group."
   value = {
     for name, secret in module.elasticache_secrets_manager : name => secret.secret_arn
   }
 }
 
 output "kms_key_arns" {
+  description = "KMS key ARN, by replication group."
   value = {
     for name, key in aws_kms_key.elasticache : name => key.arn
   }
 }
 
 output "security_group_ids" {
+  description = "Security group ID, by replication group."
   value = {
     for name, sg in aws_security_group.elasticache : name => sg.id
   }
