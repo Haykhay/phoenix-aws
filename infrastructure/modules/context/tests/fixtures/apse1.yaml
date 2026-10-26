@@ -1,0 +1,15 @@
+organisation: acme
+group: research
+environment: sandbox
+tier: sandbox
+region: ap-southeast-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: ap-southeast-1
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec: {}
