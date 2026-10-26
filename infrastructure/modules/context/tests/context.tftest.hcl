@@ -7,7 +7,7 @@ run "regional_identity" {
   command = plan
 
   assert {
-    condition     = output.env_id == "vision-sandbox"
+    condition     = output.env_id == "research-sandbox"
     error_message = "env_id is <group>-<environment> without a requester"
   }
   assert {
@@ -15,11 +15,11 @@ run "regional_identity" {
     error_message = "scope is the YAML region"
   }
   assert {
-    condition     = output.name_prefix == "vision-sandbox-euw1"
+    condition     = output.name_prefix == "research-sandbox-euw1"
     error_message = "name_prefix is <env_id>-<region code>"
   }
   assert {
-    condition     = output.state_key == "vision-sandbox/eu-west-1/core-platform/terraform.tfstate"
+    condition     = output.state_key == "research-sandbox/eu-west-1/core-platform/terraform.tfstate"
     error_message = "state_key is <env_id>/<scope>/<resource-set>/terraform.tfstate"
   }
   assert {
@@ -48,11 +48,11 @@ run "requester_isolates_names" {
   }
 
   assert {
-    condition     = output.env_id == "vision-sandbox-jdoe"
+    condition     = output.env_id == "research-sandbox-jdoe"
     error_message = "requester is appended to env_id"
   }
   assert {
-    condition     = output.name_prefix == "vision-sandbox-jdoe-euw1"
+    condition     = output.name_prefix == "research-sandbox-jdoe-euw1"
     error_message = "requester is part of the name prefix"
   }
   assert {
@@ -77,7 +77,7 @@ run "global_scope_defaults" {
     error_message = "global scope talks to us-east-1 by default"
   }
   assert {
-    condition     = output.name_prefix == "vision-sandbox"
+    condition     = output.name_prefix == "research-sandbox"
     error_message = "global names carry no region code"
   }
   assert {
@@ -127,9 +127,9 @@ run "network_from_core_network_state" {
     target = data.terraform_remote_state.core_network[0]
     values = {
       outputs = {
-        default_vpc_name = "vision-sandbox-euw1-vpc-1"
+        default_vpc_name = "research-sandbox-euw1-vpc-1"
         networks = {
-          "vision-sandbox-euw1-vpc-1" = { vpc_id = "vpc-123" }
+          "research-sandbox-euw1-vpc-1" = { vpc_id = "vpc-123" }
         }
       }
     }
@@ -140,7 +140,7 @@ run "network_from_core_network_state" {
     error_message = "network is the default VPC from core-network's state"
   }
   assert {
-    condition     = output.networks["vision-sandbox-euw1-vpc-1"].vpc_id == "vpc-123"
+    condition     = output.networks["research-sandbox-euw1-vpc-1"].vpc_id == "vpc-123"
     error_message = "networks exposes every VPC, for consumers that bind per item (core-platform clusters)"
   }
 }

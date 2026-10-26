@@ -166,7 +166,7 @@ first.
 VPC names are **derived, never written**:
 
 ```
-<name_prefix>-<vpc key>     e.g. vision-sandbox-euw1-vpc-1
+<name_prefix>-<vpc key>     e.g. research-sandbox-euw1-vpc-1
 ```
 
 Everything else is built from that one string — subnet names, interface and

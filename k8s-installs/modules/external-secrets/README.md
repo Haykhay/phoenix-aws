@@ -18,7 +18,7 @@ region:
 
 That prefix is where infrastructure's `credentials` module publishes
 (`<organisation>/<environment>/<service>/<binding>`), and where other
-components put what they need (e.g. `acme/vision-sandbox-jdoe/models/hf-token`).
+components put what they need (e.g. `acme/research-sandbox-jdoe/models/hf-token`).
 There is no `ListSecrets` / `DescribeParameters`: the operator reads values by
 name and cannot enumerate other environments' secrets.
 

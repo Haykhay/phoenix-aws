@@ -54,9 +54,9 @@ Each module's README has its spec, versions and what it needs first.
 Same identity block as infrastructure, plus `cluster`:
 
 ```yaml
-# environments/sandbox/vision-sandbox-jdoe/eu-west-1/1/vllm.llama-3-1-8b.yaml
+# environments/sandbox/research-sandbox-jdoe/eu-west-1/1/vllm.llama-3-1-8b.yaml
 organisation: acme
-group: vision
+group: research
 environment: sandbox
 requester: jdoe
 tier: sandbox
@@ -68,7 +68,7 @@ state:
   bucket: acme-tfstate-111111111111
   region: eu-west-1
 tags:
-  owner.team: vision
+  owner.team: research
   Reason: "jdoe vLLM model evaluation"
   LongLive: false
 spec:

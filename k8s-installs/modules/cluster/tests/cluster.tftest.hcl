@@ -2,7 +2,7 @@ mock_provider "aws" {}
 
 variables {
   state   = { bucket = "acme-tfstate-111111111111", region = "eu-west-1" }
-  env_id  = "vision-sandbox"
+  env_id  = "research-sandbox"
   region  = "eu-west-1"
   cluster = "1"
 }
@@ -13,7 +13,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -35,9 +35,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -48,7 +48,7 @@ run "finds_cluster" {
   command = plan
 
   assert {
-    condition     = output.cluster_name == "vision-sandbox-euw1-1-eks"
+    condition     = output.cluster_name == "research-sandbox-euw1-1-eks"
     error_message = "cluster 1's name comes from core-platform's clusters output"
   }
   assert {
@@ -64,7 +64,7 @@ run "finds_cluster" {
     error_message = "the EKS cluster security group, for components that open the API to other clusters"
   }
   assert {
-    condition     = output.dns.public_zone_name == "sandbox.vision.example.com"
+    condition     = output.dns.public_zone_name == "sandbox.research.example.com"
     error_message = "the cluster's DNS zone is zone-1 by default"
   }
   assert {

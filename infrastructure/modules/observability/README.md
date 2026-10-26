@@ -28,8 +28,8 @@ creates the per-cluster Pod Identity associations from this module's outputs.
 ## Bucket layout and isolation
 
 ```text
-<signal prefix><eks cluster name>/...   e.g. mimir/vision-sandbox-jdoe-euw1-1-eks/...
-                                              loki-vision-sandbox-jdoe-euw1-1-eks/...
+<signal prefix><eks cluster name>/...   e.g. mimir/research-sandbox-jdoe-euw1-1-eks/...
+                                              loki-research-sandbox-jdoe-euw1-1-eks/...
 ```
 
 | Signal | Prefix (output `signal_prefixes`) |
@@ -51,8 +51,8 @@ another's data, or another signal's.
 ```yaml
 environment: shared
 tags:
-  owner.team: vision
-  Reason: observability history for the vision group
+  owner.team: research
+  Reason: observability history for the research group
   LongLive: true           # required — the plan fails without it
 spec:
   retention_days:          # optional; defaults shown

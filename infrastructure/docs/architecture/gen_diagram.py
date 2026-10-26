@@ -180,7 +180,7 @@ brand("", GX + 34, 690, "terraform", 28)
 # ===================================================================== AWS  (x 1340..2480)
 AX = 1420
 group("AWS Cloud", AX, 110, 1160, 1360, "group_aws_cloud_alt", "#232F3E", font="#232F3E")
-group("Group account (one per group) — e.g. vision", AX + 20, 150, 1120, 950, "group_account", "#CD2264")
+group("Group account (one per group) — e.g. research", AX + 20, 150, 1120, 950, "group_account", "#CD2264")
 
 role = res("IAM deploy role<br>trusts GitHub OIDC", AX + 60, 200, "role", SEC)
 s3 = svc("S3 state bucket<br>one state per unit", AX + 220, 200, "s3", STORAGE)

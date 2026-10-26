@@ -55,12 +55,12 @@ override_data {
   values = {
     outputs = {
       writer_role_arns = {
-        mimir    = "arn:aws:iam::111111111111:role/vision-shared-euw1-mimir"
-        loki     = "arn:aws:iam::111111111111:role/vision-shared-euw1-loki"
-        tempo    = "arn:aws:iam::111111111111:role/vision-shared-euw1-tempo"
-        langfuse = "arn:aws:iam::111111111111:role/vision-shared-euw1-langfuse"
+        mimir    = "arn:aws:iam::111111111111:role/research-shared-euw1-mimir"
+        loki     = "arn:aws:iam::111111111111:role/research-shared-euw1-loki"
+        tempo    = "arn:aws:iam::111111111111:role/research-shared-euw1-tempo"
+        langfuse = "arn:aws:iam::111111111111:role/research-shared-euw1-langfuse"
       }
-      grafana_cloudwatch_role_arn = "arn:aws:iam::111111111111:role/vision-shared-euw1-grafana-cloudwatch"
+      grafana_cloudwatch_role_arn = "arn:aws:iam::111111111111:role/research-shared-euw1-grafana-cloudwatch"
     }
   }
 }
@@ -73,7 +73,7 @@ run "cluster_in_selected_vpc" {
     error_message = "cluster 1 sits in the default VPC from core-network's state"
   }
   assert {
-    condition     = output.clusters["1"].cluster_name == "vision-sandbox-euw1-1-eks"
+    condition     = output.clusters["1"].cluster_name == "research-sandbox-euw1-1-eks"
     error_message = "cluster name is <name_prefix>-<key>-eks"
   }
   assert {
@@ -113,7 +113,7 @@ run "observability_associations" {
     error_message = "langfuse binds to langfuse/langfuse by default"
   }
   assert {
-    condition     = aws_eks_pod_identity_association.observability["1/grafana"].role_arn == "arn:aws:iam::111111111111:role/vision-shared-euw1-grafana-cloudwatch"
+    condition     = aws_eks_pod_identity_association.observability["1/grafana"].role_arn == "arn:aws:iam::111111111111:role/research-shared-euw1-grafana-cloudwatch"
     error_message = "grafana binds to the CloudWatch read role"
   }
 }
@@ -166,18 +166,18 @@ run "personal_environment_names_fit" {
     values = {
       outputs = {
         writer_role_arns = {
-          mimir    = "arn:aws:iam::111111111111:role/vision-shared-euw1-mimir"
-          loki     = "arn:aws:iam::111111111111:role/vision-shared-euw1-loki"
-          tempo    = "arn:aws:iam::111111111111:role/vision-shared-euw1-tempo"
-          langfuse = "arn:aws:iam::111111111111:role/vision-shared-euw1-langfuse"
+          mimir    = "arn:aws:iam::111111111111:role/research-shared-euw1-mimir"
+          loki     = "arn:aws:iam::111111111111:role/research-shared-euw1-loki"
+          tempo    = "arn:aws:iam::111111111111:role/research-shared-euw1-tempo"
+          langfuse = "arn:aws:iam::111111111111:role/research-shared-euw1-langfuse"
         }
-        grafana_cloudwatch_role_arn = "arn:aws:iam::111111111111:role/vision-shared-euw1-grafana-cloudwatch"
+        grafana_cloudwatch_role_arn = "arn:aws:iam::111111111111:role/research-shared-euw1-grafana-cloudwatch"
       }
     }
   }
 
   assert {
-    condition     = output.clusters["1"].cluster_name == "vision-sandbox-jdoe-euw1-1-eks"
+    condition     = output.clusters["1"].cluster_name == "research-sandbox-jdoe-euw1-1-eks"
     error_message = "a personal environment's cluster plans with its full name"
   }
 }

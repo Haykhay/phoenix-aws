@@ -19,7 +19,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -28,16 +28,16 @@ override_data {
           vpc_id                             = "vpc-123"
           node_subnet_ids                    = ["subnet-p1", "subnet-p2", "subnet-p3"]
           karpenter = {
-            controller_role_arn = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-controller"
-            node_role_name      = "vision-sandbox-euw1-1-karpenter-node"
-            node_role_arn       = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-node"
-            queue_name          = "vision-sandbox-euw1-1-karpenter"
+            controller_role_arn = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-controller"
+            node_role_name      = "research-sandbox-euw1-1-karpenter-node"
+            node_role_arn       = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-node"
+            queue_name          = "research-sandbox-euw1-1-karpenter"
             namespace           = "karpenter"
             service_account     = "karpenter"
           }
         }
         "2" = {
-          cluster_name                       = "vision-sandbox-euw1-2-eks"
+          cluster_name                       = "research-sandbox-euw1-2-eks"
           cluster_endpoint                   = "https://DEF.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           node_security_group_id             = "sg-456"
@@ -57,9 +57,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -72,7 +72,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -81,16 +81,16 @@ override_data {
           vpc_id                             = "vpc-123"
           node_subnet_ids                    = ["subnet-p1", "subnet-p2", "subnet-p3"]
           karpenter = {
-            controller_role_arn = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-controller"
-            node_role_name      = "vision-sandbox-euw1-1-karpenter-node"
-            node_role_arn       = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-node"
-            queue_name          = "vision-sandbox-euw1-1-karpenter"
+            controller_role_arn = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-controller"
+            node_role_name      = "research-sandbox-euw1-1-karpenter-node"
+            node_role_arn       = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-node"
+            queue_name          = "research-sandbox-euw1-1-karpenter"
             namespace           = "karpenter"
             service_account     = "karpenter"
           }
         }
         "2" = {
-          cluster_name                       = "vision-sandbox-euw1-2-eks"
+          cluster_name                       = "research-sandbox-euw1-2-eks"
           cluster_endpoint                   = "https://DEF.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           node_security_group_id             = "sg-456"
@@ -110,9 +110,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -123,7 +123,7 @@ override_data {
   target = data.terraform_remote_state.management[0]
   values = {
     outputs = {
-      remote_kubeconfig_secret = "acme/vision-sandbox/kargo/remote-kubeconfig"
+      remote_kubeconfig_secret = "acme/research-sandbox/kargo/remote-kubeconfig"
     }
   }
 }
@@ -143,11 +143,11 @@ run "management_mode_on_cluster_1" {
     error_message = "cluster 1 (spec.management_cluster default) runs the full Kargo"
   }
   assert {
-    condition     = aws_secretsmanager_secret.admin[0].name == "acme/vision-sandbox/kargo/admin" && aws_secretsmanager_secret.remote_kubeconfig[0].name == "acme/vision-sandbox/kargo/remote-kubeconfig"
+    condition     = aws_secretsmanager_secret.admin[0].name == "acme/research-sandbox/kargo/admin" && aws_secretsmanager_secret.remote_kubeconfig[0].name == "acme/research-sandbox/kargo/remote-kubeconfig"
     error_message = "management secrets live under <organisation>/<env_id>/kargo/"
   }
   assert {
-    condition     = yamldecode(helm_release.route[0].values[0]).hostname == "kargo.internal.sandbox.vision.example.com" && yamldecode(helm_release.route[0].values[0]).service.name == "kargo-api"
+    condition     = yamldecode(helm_release.route[0].values[0]).hostname == "kargo.internal.sandbox.research.example.com" && yamldecode(helm_release.route[0].values[0]).service.name == "kargo-api"
     error_message = "the Kargo API/UI is an HTTPRoute on istio's internal gateway"
   }
   assert {
@@ -164,7 +164,7 @@ run "spoke_mode_on_cluster_2" {
   }
 
   assert {
-    condition     = local.mode == "spoke" && local.shard == "vision-sandbox-2" && length(aws_iam_role.kargo_controller) == 0 && length(helm_release.route) == 0
+    condition     = local.mode == "spoke" && local.shard == "research-sandbox-2" && length(aws_iam_role.kargo_controller) == 0 && length(helm_release.route) == 0
     error_message = "cluster 2 runs only a shard controller: no warehouse role, no API route"
   }
   assert {

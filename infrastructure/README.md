@@ -44,16 +44,16 @@ docs/                                                      design, plan, archite
 
 - `tier`: `sandbox`, `stage`, `uat` or `prod`.
 - `env_id`: `<group>-<environment>[-<requester>]` — the environment's unique
-  key, e.g. `vision-sandbox-jdoe`. Path, state key and resource names all start
+  key, e.g. `research-sandbox-jdoe`. Path, state key and resource names all start
   with it, so two researchers in one group never collide.
 - `scope`: the AWS region, or `global` (dns only).
 
 ## A unit's YAML
 
 ```yaml
-# environments/sandbox/vision-sandbox-jdoe/eu-west-1/core-platform.yaml
+# environments/sandbox/research-sandbox-jdoe/eu-west-1/core-platform.yaml
 organisation: acme                 # from DynamoDB / Backstage constants
-group: vision
+group: research
 environment: sandbox
 requester: jdoe                    # standalone requests only
 tier: sandbox
@@ -64,7 +64,7 @@ state:
   bucket: acme-tfstate-111111111111
   region: eu-west-1
 tags:                              # owner.team and Reason required
-  owner.team: vision
+  owner.team: research
   Reason: model evaluation
   LongLive: false                  # absent or false = ephemeral
 spec:                              # the resource set's own settings
@@ -130,7 +130,7 @@ deletes the YAML.
 
 ## Naming and tags
 
-- Names: `<env_id>-<region code>` (`vision-sandbox-jdoe-euw1`); global scope
+- Names: `<env_id>-<region code>` (`research-sandbox-jdoe-euw1`); global scope
   drops the region code. Region codes live in `modules/context`.
 - Tags on everything: `Project=Phoenix`, `Organisation`, `Group`, `Requester`
   (when set), `Environment`, `Tier`, `Scope`, `Region`, `ResourceSet`,
@@ -169,7 +169,7 @@ Terraform ≥ 1.15. With credentials for the target account:
 cd modules/core-platform
 terraform init \
   -backend-config="bucket=acme-tfstate-111111111111" \
-  -backend-config="key=vision-sandbox-jdoe/eu-west-1/core-platform/terraform.tfstate" \
+  -backend-config="key=research-sandbox-jdoe/eu-west-1/core-platform/terraform.tfstate" \
   -backend-config="region=eu-west-1" -backend-config="encrypt=true" -backend-config="use_lockfile=true"
 terraform plan -var config_file=/path/to/core-platform.yaml   # a unit YAML in the format above
 ```

@@ -1,5 +1,5 @@
 organisation: acme
-group: vision
+group: research
 environment: sandbox
 tier: sandbox
 account_id: "111111111111"
@@ -14,5 +14,5 @@ tags:
 spec:
   zones:
     zone-1:
-      public_zone_name: vision.example.com
-      internal_zone_name: internal.vision.example.com
+      public_zone_name: research.example.com
+      internal_zone_name: internal.research.example.com
