@@ -71,10 +71,8 @@ jobs:
             files="$CONFIG_FILE"; modules=""
           else
             base="origin/$BASE_REF"
-            # catalog-info.yaml (Backstage entities written next to units) is not a unit.
             files=$(git diff --name-only --diff-filter=AMR "$base...HEAD" -- \
-              'infrastructure/environments/**.yaml' 'k8s-installs/environments/**.yaml' \
-              | grep -v '/catalog-info\.yaml$' || true)
+              'infrastructure/environments/**.yaml' 'k8s-installs/environments/**.yaml')
             # A fork's pull request never schedules work on the self-hosted
             # runner (it can reach every cluster). Forks get no AWS credentials
             # anyway; their infrastructure units fail at login on hosted runners.
