@@ -83,6 +83,12 @@ label count of a registrable domain depends on the public suffix — but
 the plan rejects the common single-suffix case (a delegated two-label name with
 no `parent_zone_name`).
 
+**On-prem resolution.** The internal zone is a *public* hosted zone delegated
+from the public one (its records point at private addresses), so it resolves
+from anywhere: on-prem resolvers reach it by normal recursion, or through the
+hub's Resolver inbound endpoint (`networking/modules/hub`). There is no VPC
+association to make; Route 53 associates only private zones with VPCs.
+
 **One zone for both roles.** An account whose internal records already live in
 its public zone (mgmt: internal ALB records in `mgmt.example.com`) sets
 `internal_zone_name` to the same name as `public_zone_name`. Nothing is created
