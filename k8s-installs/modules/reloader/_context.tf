@@ -35,7 +35,7 @@ locals {
   cluster_key  = tostring(module.context.config.cluster)
   # <component>.<instance>.yaml -> instance; singletons have none.
   instance = try(regex("^[^.]+\\.(.+)\\.yaml$", basename(var.config_file))[0], null)
-  # Cluster- and instance-unique: vision-sandbox-jdoe-euw1-1[-llama-3-8b]
+  # Cluster- and instance-unique: research-sandbox-jdoe-euw1-1[-llama-3-8b]
   name_prefix  = join("-", compact([module.context.name_prefix, local.cluster_key, local.instance]))
   cluster_name = module.cluster.cluster_name
 }

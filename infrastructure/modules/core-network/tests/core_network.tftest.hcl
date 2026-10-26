@@ -20,11 +20,11 @@ run "pool_vpc_plans" {
     error_message = "one VPC, keyed vpc-1"
   }
   assert {
-    condition     = output.name_prefix == "vision-sandbox-euw1"
+    condition     = output.name_prefix == "research-sandbox-euw1"
     error_message = "account/region resources are named from the context prefix"
   }
   assert {
-    condition     = module.vpc["vpc-1"].name == "vision-sandbox-euw1-vpc-1"
+    condition     = module.vpc["vpc-1"].name == "research-sandbox-euw1-vpc-1"
     error_message = "VPC name is <name_prefix>-<vpc key>"
   }
   assert {

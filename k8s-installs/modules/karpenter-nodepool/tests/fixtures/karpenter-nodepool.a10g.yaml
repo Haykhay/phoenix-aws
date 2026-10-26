@@ -1,5 +1,5 @@
 organisation: acme
-group: vision
+group: research
 environment: sandbox
 
 tier: sandbox
@@ -11,7 +11,7 @@ state:
   bucket: acme-tfstate-111111111111
   region: eu-west-1
 tags:
-  owner.team: vision
+  owner.team: research
   Reason: test
   LongLive: false
 spec: { instance_families: [g5], gpu_count_max: 4 }

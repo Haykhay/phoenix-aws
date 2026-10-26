@@ -19,7 +19,7 @@ module "eks" {
   cluster_name = each.value.cluster_name
 
   # An IAM name_prefix caps at 38 characters, which "<cluster>-cluster-"
-  # overruns for a personal environment (vision-sandbox-jdoe-euw1-1-eks-cluster-
+  # overruns for a personal environment (research-sandbox-jdoe-euw1-1-eks-cluster-
   # is 39). The exact name "<cluster>-cluster" has IAM's full 64.
   iam_role_use_name_prefix = false
 

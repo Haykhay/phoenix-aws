@@ -1,5 +1,5 @@
 organisation: acme
-group: vision
+group: research
 environment: sandbox
 
 tier: sandbox
@@ -11,7 +11,7 @@ state:
   bucket: acme-tfstate-111111111111
   region: eu-west-1
 tags:
-  owner.team: vision
+  owner.team: research
   Reason: test
   LongLive: false
 spec: { settings: { providers: { route53: { zones: [zone-1, zone-2] } } } }

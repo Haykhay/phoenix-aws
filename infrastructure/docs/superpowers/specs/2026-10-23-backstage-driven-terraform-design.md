@@ -105,12 +105,12 @@ One file per unit. Backstage writes the environment constants into every file
 it creates, so each file stands alone.
 
 ```yaml
-# environments/sandbox/vision-sandbox-jdoe/eu-west-1/core-platform.yaml
+# environments/sandbox/research-sandbox-jdoe/eu-west-1/core-platform.yaml
 organisation: acme
 project: phoenix            # fixed
-group: vision               # owning group; its account is account_id
+group: research               # owning group; its account is account_id
 requester: jdoe             # standalone request only; omitted for group environments
-environment: sandbox       # env_id = <group>-<environment>[-<requester>] = vision-sandbox-jdoe
+environment: sandbox       # env_id = <group>-<environment>[-<requester>] = research-sandbox-jdoe
 tier: sandbox               # sandbox | stage | uat | prod
 region: eu-west-1           # omitted for global scope
 account_id: "111111111111"
@@ -124,7 +124,7 @@ state:
 
 tags:                        # mandatory: owner.team, Reason
   owner.team: research
-  owner.squad: vision        # optional
+  owner.squad: research        # optional
   Reason: model evaluation
   LongLive: false            # absent or false = ephemeral
 

@@ -19,7 +19,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -27,10 +27,10 @@ override_data {
           vpc_id                             = "vpc-123"
           node_subnet_ids                    = ["subnet-p1", "subnet-p2", "subnet-p3"]
           karpenter = {
-            controller_role_arn = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-controller"
-            node_role_name      = "vision-sandbox-euw1-1-karpenter-node"
-            node_role_arn       = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-node"
-            queue_name          = "vision-sandbox-euw1-1-karpenter"
+            controller_role_arn = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-controller"
+            node_role_name      = "research-sandbox-euw1-1-karpenter-node"
+            node_role_arn       = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-node"
+            queue_name          = "research-sandbox-euw1-1-karpenter"
             namespace           = "karpenter"
             service_account     = "karpenter"
           }
@@ -47,9 +47,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -65,15 +65,15 @@ run "plans_with_defaults" {
   }
   assert {
     condition = alltrue([
-      yamldecode(helm_release.controller[0].values[0]).settings.clusterName == "vision-sandbox-euw1-1-eks",
-      yamldecode(helm_release.controller[0].values[0]).settings.interruptionQueue == "vision-sandbox-euw1-1-karpenter",
+      yamldecode(helm_release.controller[0].values[0]).settings.clusterName == "research-sandbox-euw1-1-eks",
+      yamldecode(helm_release.controller[0].values[0]).settings.interruptionQueue == "research-sandbox-euw1-1-karpenter",
       yamldecode(helm_release.controller[0].values[0]).serviceAccount.name == "karpenter",
     ])
     error_message = "cluster, interruption queue and service account come from core-platform's karpenter facts"
   }
   assert {
     condition = alltrue([
-      yamldecode(helm_release.defaults[0].values[0]).nodeClass.role == "vision-sandbox-euw1-1-karpenter-node",
+      yamldecode(helm_release.defaults[0].values[0]).nodeClass.role == "research-sandbox-euw1-1-karpenter-node",
       length(yamldecode(helm_release.defaults[0].values[0]).nodeClass.subnetIds) == 3,
       yamldecode(helm_release.defaults[0].values[0]).nodeClass.securityGroupIds[0] == "sg-123",
     ])
@@ -90,7 +90,7 @@ run "requires_core_platform_karpenter" {
       outputs = {
         clusters = {
           "1" = {
-            cluster_name                       = "vision-sandbox-euw1-1-eks"
+            cluster_name                       = "research-sandbox-euw1-1-eks"
             cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
             cluster_certificate_authority_data = "Q0EtREFUQQ=="
             karpenter                          = null

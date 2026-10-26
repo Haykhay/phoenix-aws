@@ -248,7 +248,7 @@ service_account }`. Apply observability before this resource set.
 ## Naming
 
 ```text
-<name_prefix>-<cluster key>-eks    e.g. vision-sandbox-jdoe-euw1-2-eks
+<name_prefix>-<cluster key>-eks    e.g. research-sandbox-jdoe-euw1-2-eks
 ```
 
 `<name_prefix>` comes from `modules/context` (see the repo README). The

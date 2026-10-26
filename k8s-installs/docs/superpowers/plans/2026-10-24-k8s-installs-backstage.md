@@ -29,7 +29,7 @@
 1. A unit naming a cluster key core-platform does not have, or an env whose core-platform state is missing → plan fails with a message naming env and cluster, before any Helm/Kubernetes call (Task 1 tests `unknown_cluster_rejected`, `missing_core_platform_rejected`).
 2. Two instances of one component in one cluster (two models, two Postgres clusters) → distinct release names, namespaces where per-instance, and IAM names (Task 7 `two_instances_do_not_collide`, Task 9 `two_models_do_not_collide`).
 3. Namespace/service account drift from core-platform's Pod Identity bindings → observability writes fail silently in-cluster (Task 4 `bindings_match_core_platform`, Task 9 `langfuse_binding_matches`).
-4. Personal environments' long names (`vision-sandbox-jdoe-euw1-1…`) overrunning IAM (64) / Helm release (53) limits → plan error (Task 6 `personal_env_names_fit`, Task 1 `name_prefix_includes_cluster`).
+4. Personal environments' long names (`research-sandbox-jdoe-euw1-1…`) overrunning IAM (64) / Helm release (53) limits → plan error (Task 6 `personal_env_names_fit`, Task 1 `name_prefix_includes_cluster`).
 5. A Kargo spoke planned before its management cluster's Kargo exists → clear plan error, not a provider crash (Task 8 `spoke_without_management_rejected`).
 
 ---
@@ -56,7 +56,7 @@
 - [ ] **Step 1: Copy the old repo's reference files to scratchpad, then delete the files listed above.** Expected: `ls k8s-installs` shows `docs modules README.md .gitignore .claude`.
 
 - [ ] **Step 2: Write `modules/cluster/tests/cluster.tftest.hcl`** (mock aws; `override_data` on the two remote states) with runs:
-  - `finds_cluster`: `output.cluster_name == "vision-sandbox-euw1-1-eks"`, `output.vpc_id == "vpc-123"`, `output.dns.public_zone_name == "sandbox.vision.example.com"`
+  - `finds_cluster`: `output.cluster_name == "research-sandbox-euw1-1-eks"`, `output.vpc_id == "vpc-123"`, `output.dns.public_zone_name == "sandbox.research.example.com"`
   - `unknown_cluster_rejected`: `cluster = "9"` → `expect_failures = [terraform_data.validation]`
   - `missing_core_platform_rejected`: core-platform outputs `{}` → `expect_failures = [terraform_data.validation]`
   - `dns_optional`: dns outputs `{}` → `output.dns == null`, plan succeeds
@@ -86,7 +86,7 @@
 - `module-tests` matrix entries are `<project>/modules/<name>`.
 - "Read unit" outputs (both projects): `project`, `resource_set`, `module_ref`, `role_arn`, `aws_region`, `state_bucket`, `state_region`, `state_kms_key_id`, `state_key`. k8s: `state_key=<env_id>/<region>/k8s/<cluster>/<component>[.<instance>]/terraform.tfstate`; checks `.cluster` in YAML equals the path's cluster; refuses module `cluster` and `_boilerplate`.
 
-- [ ] **Step 1: Write the path-check cases** (scratchpad `test_read_unit.sh`, runs the workflow's "Read unit" script extracted with `yq`): 6 existing infrastructure examples pass with unchanged state keys; `k8s-installs/.../1/vllm.llama-3-8b.yaml` → `state_key=vision-sandbox-jdoe/eu-west-1/k8s/1/vllm.llama-3-8b/terraform.tfstate`; cluster mismatch → error; `modules/cluster` as component → error; apply off `main` → error.
+- [ ] **Step 1: Write the path-check cases** (scratchpad `test_read_unit.sh`, runs the workflow's "Read unit" script extracted with `yq`): 6 existing infrastructure examples pass with unchanged state keys; `k8s-installs/.../1/vllm.llama-3-8b.yaml` → `state_key=research-sandbox-jdoe/eu-west-1/k8s/1/vllm.llama-3-8b/terraform.tfstate`; cluster mismatch → error; `modules/cluster` as component → error; apply off `main` → error.
 - [ ] **Step 2: Run it.** Expected: FAIL on the k8s cases.
 - [ ] **Step 3: Implement the workflow changes;** remove the `defaults.run.working-directory`; module checkout path `src/<project>/modules/<rs>`.
 - [ ] **Step 4: Run** `test_read_unit.sh` → all pass; `$ACTIONLINT .github/workflows/terraform.yml` → clean; Backstage dry-run (`dryrun.mjs`) → files under `infrastructure/environments/...`, `check_generated.sh` → all ok. Commit (on hold).
@@ -100,7 +100,7 @@
 2. Replace generated names: `base_name_prefix`→`local.name_prefix`; `eks_cluster_name`→`local.cluster_name`; `cluster_kms_key_arn`→`module.cluster.cluster_kms_key_arn`; `dns_*`→`module.cluster.dns.*`; `data.aws_eks_cluster.this.*`→`module.cluster.*`; `var.environment`→`local.environment`; `var.scope`/`var.region`→`local.region`; `var.account_id`→`local.account_id`.
 3. Every test file: `mock_provider` aws, helm, kubernetes; `override_data` for `module.cluster.data.terraform_remote_state.core_platform` / `.dns`; runs `plans_with_defaults` (release name, namespace, pinned chart version) and `disabled_plans_nothing` (`enabled: false` → 0 releases).
 
-- [ ] **Step 1: Write tests** for the four modules; cluster-config also gets `name_prefix_includes_cluster` (`local.name_prefix == "vision-sandbox-euw1-1"`) and `personal_prefix` (`"vision-sandbox-jdoe-euw1-1"`); falco: `three_releases_in_order` (operator → falco → rules, `depends_on` chain).
+- [ ] **Step 1: Write tests** for the four modules; cluster-config also gets `name_prefix_includes_cluster` (`local.name_prefix == "research-sandbox-euw1-1"`) and `personal_prefix` (`"research-sandbox-jdoe-euw1-1"`); falco: `three_releases_in_order` (operator → falco → rules, `depends_on` chain).
 - [ ] **Step 2: Run** → FAIL (modules still read `var.config_path`).
 - [ ] **Step 3: Convert** per the recipe.
 - [ ] **Step 4: Run all four** → pass; fmt clean. Commit (on hold).
@@ -113,7 +113,7 @@
 - grafana-stack reads the observability unit's state `<group>-<observability.environment|shared>/<region>/observability/terraform.tfstate` for `bucket_name` and `writer_role_arns` (same lookup core-platform uses); releases in namespace `monitoring`: `mimir` (mimir-distributed), `loki`, `tempo`, `alloy`, `grafana`; service accounts `mimir`, `loki`, `tempo`, `grafana`; S3 prefixes `<signal>/<cluster_name>/`.
 - Outputs: `grafana_service`, `namespaces`.
 
-- [ ] **Step 1: Tests:** external-secrets `plans_with_defaults`, `pod_identity_scoped` (role allows only `secretsmanager:GetSecretValue`/`ssm:GetParameter*` on `<name_prefix>` paths + optional KMS); grafana-stack `plans_with_defaults` (5 releases), `bindings_match_core_platform` (namespace `monitoring`, SA names exactly `mimir`,`loki`,`tempo`), `bucket_from_observability_state` (rendered values contain the bucket and `mimir/vision-sandbox-euw1-1-eks/` prefix), `missing_observability_rejected`.
+- [ ] **Step 1: Tests:** external-secrets `plans_with_defaults`, `pod_identity_scoped` (role allows only `secretsmanager:GetSecretValue`/`ssm:GetParameter*` on `<name_prefix>` paths + optional KMS); grafana-stack `plans_with_defaults` (5 releases), `bindings_match_core_platform` (namespace `monitoring`, SA names exactly `mimir`,`loki`,`tempo`), `bucket_from_observability_state` (rendered values contain the bucket and `mimir/research-sandbox-euw1-1-eks/` prefix), `missing_observability_rejected`.
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** → pass. Commit (on hold).
 
 ### Task 5: Compute — karpenter, karpenter-nodepool, nvidia-gpu-operator (new)
@@ -130,7 +130,7 @@
 
 **Interfaces:** istio provides Gateway API CRDs + `istiod` + one `Gateway` per cluster (`internal` and `external` listeners) and enables the Inference Extension CRDs (`InferencePool`) — Task 9 consumes `gateway_name`/`gateway_namespace` outputs via remote state `<env_id>/<region>/k8s/<cluster>/istio`. cert-manager EKS only (delete on-prem branches); `ClusterIssuer`s use `module.cluster.dns`. external-dns zones default to the cluster's own zone.
 
-- [ ] **Step 1: Tests:** each `plans_with_defaults` + `disabled_plans_nothing`; external-dns `zone_scoped_iam` (policy resources only the cluster zone IDs), `personal_env_names_fit` (IAM role name ≤ 64 for `vision-sandbox-jdoe` env); istio `gateway_and_inference_crds`; cert-manager `issuers_use_cluster_zone`, `no_dns_rejected` (no dns state → clear error).
+- [ ] **Step 1: Tests:** each `plans_with_defaults` + `disabled_plans_nothing`; external-dns `zone_scoped_iam` (policy resources only the cluster zone IDs), `personal_env_names_fit` (IAM role name ≤ 64 for `research-sandbox-jdoe` env); istio `gateway_and_inference_crds`; cert-manager `issuers_use_cluster_zone`, `no_dns_rejected` (no dns state → clear error).
 - [ ] **Step 2–4:** FAIL → convert → pass. Commit (on hold).
 
 ### Task 7: Data — cloudnative-pg(+cluster), valkey-redis(+cluster), strimzi-kafka(+cluster)
@@ -165,7 +165,7 @@
 - Create: `backstage/phoenix/templates/workload/{template.yaml,skeleton/…}`
 - Modify: `backstage/phoenix/templates/environment/template.yaml` (register a `phoenix-cluster` Resource per core-platform cluster; drop the `gpu` toggle and the managed GPU node group, per spec call 3)
 - Modify: `backstage/app-config.docker.yaml` (catalog locations)
-- Create: `k8s-installs/environments/sandbox/vision-sandbox-jdoe/eu-west-1/1/*.yaml` examples (one per component used by model-serving + postgres + l4)
+- Create: `k8s-installs/environments/sandbox/research-sandbox-jdoe/eu-west-1/1/*.yaml` examples (one per component used by model-serving + postgres + l4)
 
 **Interfaces:**
 - Entities: `resource:default/workload-<name>` (`spec.type: phoenix-workload`), `database-<name>`, `gpu-<name>` (annotations `phoenix/instance-families`, `phoenix/gpu-count-max`), `model-<slug>` (annotations `phoenix/hf-id`, `phoenix/min-gpu`), `component-<module>` (`spec.dependsOn` for prerequisites, annotation `phoenix/instanced: "true"` where applicable). Baseline = `resource:default/workload-baseline`, always included.

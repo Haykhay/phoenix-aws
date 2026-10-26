@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       config_file:
-        description: "Unit YAML from the repo root, e.g. infrastructure/environments/sandbox/vision-sandbox-jdoe/eu-west-1/core-platform.yaml"
+        description: "Unit YAML from the repo root, e.g. infrastructure/environments/sandbox/research-sandbox-jdoe/eu-west-1/core-platform.yaml"
         required: true
         type: string
       action:

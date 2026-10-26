@@ -12,15 +12,15 @@ run "dns_zone_names" {
   command = plan
 
   assert {
-    condition     = aws_route53_zone.public["zone-1"].name == "vision.example.com"
+    condition     = aws_route53_zone.public["zone-1"].name == "research.example.com"
     error_message = "public zone from the YAML"
   }
   assert {
-    condition     = aws_route53_zone.internal["zone-1"].name == "internal.vision.example.com"
+    condition     = aws_route53_zone.internal["zone-1"].name == "internal.research.example.com"
     error_message = "internal zone from the YAML"
   }
   assert {
-    condition     = aws_route53_record.public_ns["zone-1"].name == "vision.example.com"
+    condition     = aws_route53_record.public_ns["zone-1"].name == "research.example.com"
     error_message = "public zone is delegated into its parent through the management provider"
   }
 }

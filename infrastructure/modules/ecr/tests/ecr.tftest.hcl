@@ -16,7 +16,7 @@ run "ecr_rule_points_at_hub" {
     error_message = "cached repositories live under the artifactory/ prefix by default"
   }
   assert {
-    condition     = aws_ecr_pull_through_cache_rule.this.custom_role_arn == "arn:aws:iam::111111111111:role/vision-shared-euw1-ecr-pull-through"
+    condition     = aws_ecr_pull_through_cache_rule.this.custom_role_arn == "arn:aws:iam::111111111111:role/research-shared-euw1-ecr-pull-through"
     error_message = "the rule pulls with this account's pull-through role"
   }
   assert {

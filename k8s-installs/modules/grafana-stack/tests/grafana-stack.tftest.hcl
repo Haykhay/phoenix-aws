@@ -19,7 +19,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -39,9 +39,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -52,7 +52,7 @@ override_data {
   target = data.terraform_remote_state.observability
   values = {
     outputs = {
-      bucket_name     = "vision-shared-euw1-observability-111111111111"
+      bucket_name     = "research-shared-euw1-observability-111111111111"
       signal_prefixes = { mimir = "mimir/", loki = "loki-", tempo = "tempo/", langfuse = "langfuse/" }
     }
   }
@@ -104,19 +104,19 @@ run "bucket_from_observability_state" {
   command = plan
 
   assert {
-    condition     = yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.common.storage.s3.bucket_name == "vision-shared-euw1-observability-111111111111"
+    condition     = yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.common.storage.s3.bucket_name == "research-shared-euw1-observability-111111111111"
     error_message = "Mimir writes to the group's observability bucket"
   }
   assert {
-    condition     = yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.no_auth_tenant == "vision-sandbox-euw1-1-eks" && yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.blocks_storage.storage_prefix == "mimir"
+    condition     = yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.no_auth_tenant == "research-sandbox-euw1-1-eks" && yamldecode(helm_release.mimir[0].values[0]).mimir.structuredConfig.blocks_storage.storage_prefix == "mimir"
     error_message = "Mimir's objects land under mimir/<cluster name>/ (prefix mimir, tenant = cluster name)"
   }
   assert {
-    condition     = yamldecode(helm_release.loki[0].values[0]).loki.storage.object_store.storage_prefix == "loki-vision-sandbox-euw1-1-eks"
+    condition     = yamldecode(helm_release.loki[0].values[0]).loki.storage.object_store.storage_prefix == "loki-research-sandbox-euw1-1-eks"
     error_message = "Loki's objects land under loki-<cluster name>/"
   }
   assert {
-    condition     = yamldecode(helm_release.tempo[0].values[0]).tempo.storage.trace.s3.prefix == "tempo/vision-sandbox-euw1-1-eks"
+    condition     = yamldecode(helm_release.tempo[0].values[0]).tempo.storage.trace.s3.prefix == "tempo/research-sandbox-euw1-1-eks"
     error_message = "Tempo's objects land under tempo/<cluster name>/"
   }
 }

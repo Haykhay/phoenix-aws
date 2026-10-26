@@ -78,7 +78,7 @@ locals {
   # ---------------------------------------------------------------------------
   # NAMING
   #
-  # `base_name_prefix` (`<env_id>-<region code>`, e.g. vision-sandbox-euw1)
+  # `base_name_prefix` (`<env_id>-<region code>`, e.g. research-sandbox-euw1)
   # comes from modules/context, the single place the naming scheme is written
   # and the line to change when the Phoenix naming convention is
   # decided. It is still Proposed.

@@ -8,7 +8,7 @@ run "bucket_named_per_account" {
   command = plan
 
   assert {
-    condition     = aws_s3_bucket.this.bucket == "vision-shared-euw1-observability-111111111111"
+    condition     = aws_s3_bucket.this.bucket == "research-shared-euw1-observability-111111111111"
     error_message = "bucket is <name_prefix>-observability-<account id>"
   }
   assert {
@@ -60,21 +60,21 @@ run "writer_scoped_to_cluster" {
   assert {
     condition = contains(
       flatten([for s in jsondecode(aws_iam_role_policy.writer_s3["mimir"].policy).Statement : s.Resource]),
-      "arn:aws:s3:::vision-shared-euw1-observability-111111111111/mimir/$${aws:PrincipalTag/eks-cluster-name}/*",
+      "arn:aws:s3:::research-shared-euw1-observability-111111111111/mimir/$${aws:PrincipalTag/eks-cluster-name}/*",
     )
     error_message = "mimir may only write under mimir/<its own cluster name>/"
   }
   assert {
     condition = !contains(
       flatten([for s in jsondecode(aws_iam_role_policy.writer_s3["mimir"].policy).Statement : s.Resource]),
-      "arn:aws:s3:::vision-shared-euw1-observability-111111111111/loki/$${aws:PrincipalTag/eks-cluster-name}/*",
+      "arn:aws:s3:::research-shared-euw1-observability-111111111111/loki/$${aws:PrincipalTag/eks-cluster-name}/*",
     )
     error_message = "mimir cannot write into another signal's prefix"
   }
   assert {
     condition = contains(
       flatten([for s in jsondecode(aws_iam_role_policy.writer_s3["loki"].policy).Statement : s.Resource]),
-      "arn:aws:s3:::vision-shared-euw1-observability-111111111111/loki-$${aws:PrincipalTag/eks-cluster-name}/*",
+      "arn:aws:s3:::research-shared-euw1-observability-111111111111/loki-$${aws:PrincipalTag/eks-cluster-name}/*",
     )
     error_message = "loki writes under loki-<cluster name>/: Loki's storage_prefix cannot contain a slash"
   }

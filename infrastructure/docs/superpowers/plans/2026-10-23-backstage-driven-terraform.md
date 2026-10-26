@@ -67,14 +67,14 @@ Expected: matches only inside `modules/*/*.tf` that later tasks rewrite (`var.co
   - outputs: `config` (any — whole YAML), `spec` (any — `try(config.spec, {})`), `organisation`, `group`, `requester` (string or null), `environment`, `env_id`, `tier`, `scope`, `region`, `account_id`, `region_code` (null for global), `name_prefix`, `tags` (map(string)), `state` (object `{bucket, region, kms_key_id}`), `state_key` (this unit's key), `network` (object as core-network's `networks[<vpc>]`, or null), `pipeline_user`
 
 - [ ] **Step 1: Write the failing tests** in `context.tftest.hcl`, all `command = plan`, `variables { resource_set = "core-platform" }`:
-  - `regional_identity`: `regional.yaml` (org `acme`, group `vision`, environment `sandbox`, region `eu-west-1`, account `111111111111`) → `env_id == "vision-sandbox"`, `scope == "eu-west-1"`, `name_prefix == "vision-sandbox-euw1"`, `state_key == "vision-sandbox/eu-west-1/core-platform/terraform.tfstate"`, `tags["Project"] == "Phoenix"`, `tags["ResourceSet"] == "core-platform"`, `!contains(keys(tags), "Requester")`.
-  - `requester_isolates_names`: `personal.yaml` (same + `requester: jdoe`) → `env_id == "vision-sandbox-jdoe"`, `name_prefix == "vision-sandbox-jdoe-euw1"`, `tags["Requester"] == "jdoe"`.
-  - `global_scope_defaults`: `global.yaml` (no `region`) → `scope == "global"`, `region == "us-east-1"`, `name_prefix == "vision-sandbox"`, `region_code == null`.
+  - `regional_identity`: `regional.yaml` (org `acme`, group `research`, environment `sandbox`, region `eu-west-1`, account `111111111111`) → `env_id == "research-sandbox"`, `scope == "eu-west-1"`, `name_prefix == "research-sandbox-euw1"`, `state_key == "research-sandbox/eu-west-1/core-platform/terraform.tfstate"`, `tags["Project"] == "Phoenix"`, `tags["ResourceSet"] == "core-platform"`, `!contains(keys(tags), "Requester")`.
+  - `requester_isolates_names`: `personal.yaml` (same + `requester: jdoe`) → `env_id == "research-sandbox-jdoe"`, `name_prefix == "research-sandbox-jdoe-euw1"`, `tags["Requester"] == "jdoe"`.
+  - `global_scope_defaults`: `global.yaml` (no `region`) → `scope == "global"`, `region == "us-east-1"`, `name_prefix == "research-sandbox"`, `region_code == null`.
   - `missing_owner_rejected`: `bad_tags.yaml` (no `owner.team`) → `expect_failures = [output.tags]`.
   - `longlive_string_rejected`: `longlive_string.yaml` (`LongLive: "false"`) → `expect_failures = [output.tags]`.
-  - `network_from_core_network_state`: `regional.yaml`, `network = true`, `override_data { target = data.terraform_remote_state.core_network[0]; values = { outputs = { default_vpc_name = "vision-sandbox-euw1-vpc-1", networks = { "vision-sandbox-euw1-vpc-1" = { vpc_id = "vpc-123" } } } } }` → `network.vpc_id == "vpc-123"`.
+  - `network_from_core_network_state`: `regional.yaml`, `network = true`, `override_data { target = data.terraform_remote_state.core_network[0]; values = { outputs = { default_vpc_name = "research-sandbox-euw1-vpc-1", networks = { "research-sandbox-euw1-vpc-1" = { vpc_id = "vpc-123" } } } } }` → `network.vpc_id == "vpc-123"`.
   - `network_missing_state_is_null`: as above with `outputs = {}` → `network == null`.
-  - `bad_identifier_rejected`: `regional.yaml` with `group: Vision` (separate fixture) → `expect_failures = [output.name_prefix]`.
+  - `bad_identifier_rejected`: `regional.yaml` with `group: Research` (separate fixture) → `expect_failures = [output.name_prefix]`.
 
 - [ ] **Step 2: Run to verify they fail**
 Run: `cd modules/context && terraform init -backend=false && terraform test`
@@ -106,7 +106,7 @@ Expected: `8 passed, 0 failed`.
   - Unchanged output contract: `networks`, `default_vpc_name`, `vpc_names`.
 
 - [ ] **Step 1: Write the failing test** (`mock_provider "aws" {}`, `mock_provider "aws" { alias = "network" }`, `mock_provider "aws" { alias = "network_dublin" }`, `override_data` for `data.terraform_remote_state.network` / `network_dublin` / `data.aws_vpc_ipam_pool.this`):
-  - `pool_vpc_plans`: fixture with one VPC `vpc-1 = { pool = "nonprod", azs = [a,b,c] }` → `output.vpc_names == ["vision-sandbox-euw1-vpc-1"]`.
+  - `pool_vpc_plans`: fixture with one VPC `vpc-1 = { pool = "nonprod", azs = [a,b,c] }` → `output.vpc_names == ["research-sandbox-euw1-vpc-1"]`.
   - `literal_cidr_rejected`: VPC with `cidr = "10.0.0.0/16"` → `expect_failures` on the `terraform_data.validation` precondition.
   - `network_providers_from_spec`: the network provider role ARN comes from `spec.providers.network.role_arn` (assert via a `locals`-exposed output `network_role_arn`).
 
@@ -128,9 +128,9 @@ Expected: `8 passed, 0 failed`.
 - Produces outputs read by core-platform (Task 5): `bucket_name`, `bucket_arn`, `kms_key_arn`, `writer_role_arns` (map: `mimir`, `loki`, `tempo`, `langfuse`), `grafana_cloudwatch_role_arn`.
 
 - [ ] **Step 1: Write the failing tests** (`mock_provider "aws" {}`, `command = plan`):
-  - `bucket_named_per_account`: `aws_s3_bucket.this.bucket == "vision-shared-euw1-observability-111111111111"`.
+  - `bucket_named_per_account`: `aws_s3_bucket.this.bucket == "research-shared-euw1-observability-111111111111"`.
   - `retention_per_signal`: default spec → lifecycle rules with `filter.prefix` `"mimir/"`=30, `"loki/"`=14, `"tempo/"`=7, `"langfuse/"`=30 days; `spec.retention_days.loki = 30` overrides loki only.
-  - `writer_scoped_to_cluster`: the mimir writer policy JSON contains `"arn:aws:s3:::vision-shared-euw1-observability-111111111111/mimir/${aws:PrincipalTag/eks-cluster-name}/*"`.
+  - `writer_scoped_to_cluster`: the mimir writer policy JSON contains `"arn:aws:s3:::research-shared-euw1-observability-111111111111/mimir/${aws:PrincipalTag/eks-cluster-name}/*"`.
   - `pod_identity_trust`: every writer role's trust policy principal is `pods.eks.amazonaws.com` with actions `sts:AssumeRole`, `sts:TagSession`.
   - `requires_longlive`: fixture without `LongLive: true` → precondition failure on `aws_s3_bucket.this` ("observability must be LongLive").
 - [ ] **Step 2: Run to verify they fail.**
@@ -197,7 +197,7 @@ Expected: `8 passed, 0 failed`.
 
 - [ ] **Step 1: Write the failing tests:**
   - `dns_global_only`: dns fixture with `region: eu-west-1` → precondition failure (`dns belongs in the global scope`).
-  - `dns_zone_names`: global fixture, zone `zone-1 = { public_zone_name = "vision.example.com", internal_zone_name = "internal.vision.example.com" }` → `aws_route53_zone.public["zone-1"].name == "vision.example.com"`.
+  - `dns_zone_names`: global fixture, zone `zone-1 = { public_zone_name = "research.example.com", internal_zone_name = "internal.research.example.com" }` → `aws_route53_zone.public["zone-1"].name == "research.example.com"`.
   - `ecr_rule_points_at_hub`: `spec.hub.account_id = "999999999999"` → `aws_ecr_pull_through_cache_rule.this.upstream_registry_url == "999999999999.dkr.ecr.eu-west-1.amazonaws.com"`, `ecr_repository_prefix == "artifactory"`, `custom_role_arn` = the spoke role.
   - `ecr_template_encrypts`: `aws_ecr_repository_creation_template.this.prefix == "artifactory"`, `applied_for == ["PULL_THROUGH_CACHE"]`, encryption KMS.
   - `ecr_role_trusts_pull_through`: role trust principal `pullthroughcache.ecr.amazonaws.com`.
@@ -212,7 +212,7 @@ Expected: `8 passed, 0 failed`.
 ### Task 8: Workflow, example environments, README
 
 **Files:**
-- Create: `.github/workflows/terraform.yml`; example YAMLs `environments/sandbox/vision-shared/eu-west-1/observability.yaml`, `environments/sandbox/vision-sandbox-jdoe/eu-west-1/{core-network,core-platform,data-rds}.yaml`, `environments/sandbox/vision-sandbox-jdoe/global/dns.yaml` (placeholder account `111111111111`, org `acme`)
+- Create: `.github/workflows/terraform.yml`; example YAMLs `environments/sandbox/research-shared/eu-west-1/observability.yaml`, `environments/sandbox/research-sandbox-jdoe/eu-west-1/{core-network,core-platform,data-rds}.yaml`, `environments/sandbox/research-sandbox-jdoe/global/dns.yaml` (placeholder account `111111111111`, org `acme`)
 - Modify: `README.md`
 - Delete: `.github/CODEOWNERS` *(done at user request: approvers come with Backstage groups)*
 

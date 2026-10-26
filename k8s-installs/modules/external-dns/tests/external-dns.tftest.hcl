@@ -19,7 +19,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -27,10 +27,10 @@ override_data {
           vpc_id                             = "vpc-123"
           node_subnet_ids                    = ["subnet-p1", "subnet-p2", "subnet-p3"]
           karpenter = {
-            controller_role_arn = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-controller"
-            node_role_name      = "vision-sandbox-euw1-1-karpenter-node"
-            node_role_arn       = "arn:aws:iam::111111111111:role/vision-sandbox-euw1-1-karpenter-node"
-            queue_name          = "vision-sandbox-euw1-1-karpenter"
+            controller_role_arn = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-controller"
+            node_role_name      = "research-sandbox-euw1-1-karpenter-node"
+            node_role_arn       = "arn:aws:iam::111111111111:role/research-sandbox-euw1-1-karpenter-node"
+            queue_name          = "research-sandbox-euw1-1-karpenter"
             namespace           = "karpenter"
             service_account     = "karpenter"
           }
@@ -47,9 +47,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -64,7 +64,7 @@ run "plans_with_defaults" {
     error_message = "external-dns installs the pinned chart into its own namespace"
   }
   assert {
-    condition     = yamldecode(helm_release.this[0].values[0]).txtOwnerId == "vision-sandbox-euw1-1" && yamldecode(helm_release.this[0].values[0]).policy == "upsert-only"
+    condition     = yamldecode(helm_release.this[0].values[0]).txtOwnerId == "research-sandbox-euw1-1" && yamldecode(helm_release.this[0].values[0]).policy == "upsert-only"
     error_message = "records are owned per cluster and never deleted by default"
   }
 }
@@ -115,7 +115,7 @@ run "personal_env_names_fit" {
   }
 
   assert {
-    condition     = aws_iam_role.this[0].name == "vision-sandbox-jdoe-euw1-1-external-dns" && length(aws_iam_role.this[0].name) <= 64
+    condition     = aws_iam_role.this[0].name == "research-sandbox-jdoe-euw1-1-external-dns" && length(aws_iam_role.this[0].name) <= 64
     error_message = "a personal environment's role name fits IAM's 64 characters"
   }
 }

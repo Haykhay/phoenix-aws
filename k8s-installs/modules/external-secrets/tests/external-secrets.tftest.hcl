@@ -19,7 +19,7 @@ override_data {
     outputs = {
       clusters = {
         "1" = {
-          cluster_name                       = "vision-sandbox-euw1-1-eks"
+          cluster_name                       = "research-sandbox-euw1-1-eks"
           cluster_endpoint                   = "https://ABC.gr7.eu-west-1.eks.amazonaws.com"
           cluster_certificate_authority_data = "Q0EtREFUQQ=="
           cluster_kms_key_arn                = "arn:aws:kms:eu-west-1:111111111111:key/1234"
@@ -39,9 +39,9 @@ override_data {
       zones = {
         "zone-1" = {
           public_zone_id     = "Z1PUB"
-          public_zone_name   = "sandbox.vision.example.com"
+          public_zone_name   = "sandbox.research.example.com"
           internal_zone_id   = "Z1INT"
-          internal_zone_name = "internal.sandbox.vision.example.com"
+          internal_zone_name = "internal.sandbox.research.example.com"
         }
       }
     }
@@ -60,7 +60,7 @@ run "plans_with_defaults" {
     error_message = "the Pod Identity association binds the chart's service account"
   }
   assert {
-    condition     = aws_iam_role.this[0].name == "vision-sandbox-euw1-1-external-secrets"
+    condition     = aws_iam_role.this[0].name == "research-sandbox-euw1-1-external-secrets"
     error_message = "the role is named <name_prefix>-external-secrets"
   }
 }
@@ -69,11 +69,11 @@ run "pod_identity_scoped" {
   command = plan
 
   assert {
-    condition     = local.secrets_manager_arns == ["arn:aws:secretsmanager:eu-west-1:111111111111:secret:acme/vision-sandbox/*"]
+    condition     = local.secrets_manager_arns == ["arn:aws:secretsmanager:eu-west-1:111111111111:secret:acme/research-sandbox/*"]
     error_message = "Secrets Manager access is limited to <organisation>/<env_id>/ in the unit's account and region"
   }
   assert {
-    condition     = local.ssm_parameter_arns == ["arn:aws:ssm:eu-west-1:111111111111:parameter/acme/vision-sandbox/*"]
+    condition     = local.ssm_parameter_arns == ["arn:aws:ssm:eu-west-1:111111111111:parameter/acme/research-sandbox/*"]
     error_message = "SSM access is limited to /<organisation>/<env_id>/ in the unit's account and region"
   }
   assert {
@@ -90,7 +90,7 @@ run "personal_env_names_fit" {
   }
 
   assert {
-    condition     = aws_iam_role.this[0].name == "vision-sandbox-jdoe-euw1-1-external-secrets" && length(aws_iam_role.this[0].name) <= 64
+    condition     = aws_iam_role.this[0].name == "research-sandbox-jdoe-euw1-1-external-secrets" && length(aws_iam_role.this[0].name) <= 64
     error_message = "a personal environment's role name fits IAM's 64 characters"
   }
 }
