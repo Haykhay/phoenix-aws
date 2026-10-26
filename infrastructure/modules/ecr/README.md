@@ -67,3 +67,56 @@ repository, which plain pull rights do not allow: add output
 ```bash
 terraform init -backend=false && terraform test
 ```
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- The central ECR hub account the cache pulls from (`spec.hub.account_id`; the plan fails without it).
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/ecr.yaml
+state: <env_id>/<region>/ecr/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/ecr
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/ecr/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/ecr.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`ecr_rule_points_at_hub`, `ecr_template_encrypts`, `ecr_role_trusts_pull_through`, `ecr_requires_hub`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `cache_prefix` | Pull-through cache prefix: <account>.dkr.ecr.<region>.amazonaws.com/<prefix>/... pulls through the hub. |
+| `registry_url_prefix` | Image references start with this: <registry_url_prefix>/<repo>:<tag>. |
+| `pull_through_role_arn` | Role ECR assumes to pull from the hub; the hub's registry policy must allow it. |
+| `node_pull_policy_arn` | Attach to node roles (core-platform node_role_additional_policies). |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: core-platform (node pull permissions) and argo-cd (OCI charts). Destroy those first.

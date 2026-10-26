@@ -67,51 +67,63 @@ output "name_prefix" {
 # ---------------------------------------------------------------------------
 
 output "vpc_id" {
-  value = try(local.default_network.vpc_id, null)
+  description = "Default VPC: ID."
+  value       = try(local.default_network.vpc_id, null)
 }
 
 output "vpc_cidr_block" {
-  value = try(local.default_network.vpc_cidr_block, null)
+  description = "Default VPC: CIDR block (from IPAM)."
+  value       = try(local.default_network.vpc_cidr_block, null)
 }
 
 output "private_subnets" {
-  value = try(local.default_network.private_subnet_ids, [])
+  description = "Default VPC: private subnet IDs."
+  value       = try(local.default_network.private_subnet_ids, [])
 }
 
 output "data_subnet_ids" {
-  value = try(local.default_network.data_subnet_ids, [])
+  description = "Default VPC: data subnet IDs (databases)."
+  value       = try(local.default_network.data_subnet_ids, [])
 }
 
 output "platform_subnet_ids" {
-  value = try(local.default_network.platform_subnet_ids, [])
+  description = "Default VPC: platform subnet IDs (EKS nodes)."
+  value       = try(local.default_network.platform_subnet_ids, [])
 }
 
 output "public_subnets" {
-  value = try(local.default_network.public_subnet_ids, [])
+  description = "Default VPC: public subnet IDs."
+  value       = try(local.default_network.public_subnet_ids, [])
 }
 
 output "private_subnet_cidrs" {
-  value = try(local.default_network.private_subnet_cidrs, [])
+  description = "Default VPC: private subnet CIDRs."
+  value       = try(local.default_network.private_subnet_cidrs, [])
 }
 
 output "public_subnet_cidrs" {
-  value = try(local.default_network.public_subnet_cidrs, [])
+  description = "Default VPC: public subnet CIDRs."
+  value       = try(local.default_network.public_subnet_cidrs, [])
 }
 
 output "private_route_table_ids" {
-  value = try(local.default_network.private_route_table_ids, [])
+  description = "Default VPC: private route table IDs."
+  value       = try(local.default_network.private_route_table_ids, [])
 }
 
 output "vpc_endpoint_security_group_id" {
-  value = try(local.default_network.vpc_endpoint_security_group_id, null)
+  description = "Default VPC: security group on its interface endpoints."
+  value       = try(local.default_network.vpc_endpoint_security_group_id, null)
 }
 
 output "vpc_endpoint_ids" {
-  value = try(local.default_network.vpc_endpoint_ids, {})
+  description = "Default VPC: interface endpoint IDs, by service."
+  value       = try(local.default_network.vpc_endpoint_ids, {})
 }
 
 output "tgw_attachment_id" {
-  value = try(local.default_network.tgw_attachment_id, null)
+  description = "Default VPC: transit gateway attachment ID, if attached."
+  value       = try(local.default_network.tgw_attachment_id, null)
 }
 
 output "resource_summary" {

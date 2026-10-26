@@ -1,5 +1,6 @@
 output "url" {
-  value = local.config.enabled ? "https://${local.hostname}" : null
+  description = "Langfuse UI, on istio's internal gateway."
+  value       = local.config.enabled ? "https://${local.hostname}" : null
 }
 
 output "otel_endpoint" {

@@ -1,5 +1,6 @@
 output "instance_names" {
-  value = keys(local.instances)
+  description = "Keys of the RDS instances."
+  value       = keys(local.instances)
 }
 
 output "rds" {
@@ -17,18 +18,21 @@ output "rds" {
 }
 
 output "secret_arns" {
+  description = "Connection secret ARN, by instance."
   value = {
     for name, secret in module.rds_secrets_manager : name => secret.secret_arn
   }
 }
 
 output "kms_key_arns" {
+  description = "KMS key ARN, by instance."
   value = {
     for name, key in aws_kms_key.rds : name => key.arn
   }
 }
 
 output "security_group_ids" {
+  description = "Security group ID, by instance."
   value = {
     for name, sg in aws_security_group.rds : name => sg.id
   }

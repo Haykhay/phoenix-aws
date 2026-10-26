@@ -89,3 +89,58 @@ it there is nothing to authenticate. Rotation is deliberate, via
 
 Each cluster gets a Secrets Manager secret holding the primary and reader
 endpoints, the port, and the AUTH token when transit encryption is on.
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- `core-network` (the plan fails without it).
+- `core-platform`, so the clusters' node security group may connect.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/data-elasticache.yaml
+state: <env_id>/<region>/data-elasticache/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/data-elasticache
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/data-elasticache/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/data-elasticache.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_in_selected_vpc`, `eks_binding_required`, `elasticache_name_too_long`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `cluster_names` | Keys of the replication groups. |
+| `elasticache` | ElastiCache connection info |
+| `secret_arns` | Connection secret ARN, by replication group. |
+| `kms_key_arns` | KMS key ARN, by replication group. |
+| `security_group_ids` | Security group ID, by replication group. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: applications, through the secrets published under `<organisation>/<env_id>/redis/`. Destroy those first.

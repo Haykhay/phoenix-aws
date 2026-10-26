@@ -329,3 +329,68 @@ range (usually within `<hub VPC CIDR>`).
   created shares and static routes (e.g. the Dublin hub RT's `<hub VPC CIDR>`);
   import or delete the manual resource before enabling the corresponding flag.
 
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- An **IPAM pool** to allocate from (`spec.vpcs.<name>.pool` or `ipam_pool_id`): the networking foundation, not built yet.
+- Transit gateway features only: the networking account (`spec.providers.network.account_id` and `.state_bucket`) and its state.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/<region>/core-network.yaml
+state: <env_id>/<region>/core-network/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/core-network
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/<region>/core-network/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/core-network.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`pool_vpc_plans`, `literal_cidr_rejected`, `tgw_requires_network_provider`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `networks` | All VPCs in this environment/region, keyed by VPC name. |
+| `default_vpc_name` | VPC that resource sets bind to unless they set `vpc` explicitly. |
+| `vpc_names` | Names of every configured VPC. |
+| `name_prefix` | Naming prefix for account/region-level network resources. |
+| `vpc_id` | Default VPC: ID. |
+| `vpc_cidr_block` | Default VPC: CIDR block (from IPAM). |
+| `private_subnets` | Default VPC: private subnet IDs. |
+| `data_subnet_ids` | Default VPC: data subnet IDs (databases). |
+| `platform_subnet_ids` | Default VPC: platform subnet IDs (EKS nodes). |
+| `public_subnets` | Default VPC: public subnet IDs. |
+| `private_subnet_cidrs` | Default VPC: private subnet CIDRs. |
+| `public_subnet_cidrs` | Default VPC: public subnet CIDRs. |
+| `private_route_table_ids` | Default VPC: private route table IDs. |
+| `vpc_endpoint_security_group_id` | Default VPC: security group on its interface endpoints. |
+| `vpc_endpoint_ids` | Default VPC: interface endpoint IDs, by service. |
+| `tgw_attachment_id` | Default VPC: transit gateway attachment ID, if attached. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: core-platform, data-rds, data-elasticache, data-msk (and anything with `network = true` in `modules/context`). Destroy those first.

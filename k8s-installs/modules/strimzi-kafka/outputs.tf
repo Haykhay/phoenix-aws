@@ -1,13 +1,16 @@
 output "release_name" {
-  value = try(helm_release.this[0].name, null)
+  description = "Helm release name."
+  value       = try(helm_release.this[0].name, null)
 }
 
 output "namespace" {
-  value = try(helm_release.this[0].namespace, null)
+  description = "Namespace it runs in."
+  value       = try(helm_release.this[0].namespace, null)
 }
 
 output "chart_version" {
-  value = try(helm_release.this[0].version, null)
+  description = "Chart version installed."
+  value       = try(helm_release.this[0].version, null)
 }
 
 output "resource_summary" {

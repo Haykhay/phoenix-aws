@@ -1,5 +1,6 @@
 output "namespace" {
-  value = local.namespace
+  description = "Namespace it runs in."
+  value       = local.namespace
 }
 
 output "resource_summary" {

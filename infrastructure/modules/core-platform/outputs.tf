@@ -47,32 +47,39 @@ output "cluster_names" {
 # --- Deprecated single-cluster shims, resolving against the default cluster ---
 
 output "cluster_name" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].cluster_name : null
+  description = "Default cluster: name."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].cluster_name : null
 }
 
 output "cluster_id" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].cluster_id : null
+  description = "Default cluster: ID."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].cluster_id : null
 }
 
 output "cluster_arn" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].cluster_arn : null
+  description = "Default cluster: ARN."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].cluster_arn : null
 }
 
 output "cluster_endpoint" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].cluster_endpoint : null
+  description = "Default cluster: API endpoint (private)."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].cluster_endpoint : null
 }
 
 output "cluster_certificate_authority_data" {
-  value     = local.config.enabled ? module.eks[local.default_cluster_name].cluster_certificate_authority_data : null
-  sensitive = true
+  description = "Default cluster: CA data (sensitive)."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].cluster_certificate_authority_data : null
+  sensitive   = true
 }
 
 output "cluster_kms_key_arn" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].kms_key_arn : null
+  description = "Default cluster: KMS key for secrets encryption."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].kms_key_arn : null
 }
 
 output "node_security_group_id" {
-  value = local.config.enabled ? module.eks[local.default_cluster_name].node_security_group_id : null
+  description = "Default cluster: node security group ID."
+  value       = local.config.enabled ? module.eks[local.default_cluster_name].node_security_group_id : null
 }
 
 output "resource_summary" {

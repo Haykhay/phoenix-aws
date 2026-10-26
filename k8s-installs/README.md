@@ -126,3 +126,8 @@ work (see the design's Deferred section).
 3. A `component-<name>` entity in the Backstage repository's `phoenix/catalog/components.yaml`
    with its prerequisites, and the component added to every option that needs
    it (options list their full set).
+4. A `README.md` saying what it installs and its `spec`, then a **Running it**
+   section like every other module's: the infrastructure units and components
+   it needs first, what someone must provide, the unit file and state key, how
+   to run it, its outputs (every output has a `description`), and what to
+   destroy before it.

@@ -7,11 +7,13 @@ output "bucket_name" {
 }
 
 output "bucket_arn" {
-  value = aws_s3_bucket.this.arn
+  description = "The observability bucket's ARN."
+  value       = aws_s3_bucket.this.arn
 }
 
 output "kms_key_arn" {
-  value = aws_kms_key.this.arn
+  description = "KMS key encrypting the bucket."
+  value       = aws_kms_key.this.arn
 }
 
 output "writer_role_arns" {

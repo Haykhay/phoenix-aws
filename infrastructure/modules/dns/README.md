@@ -135,3 +135,58 @@ multiple zones keep working **while there is only one** — the in-cluster repo 
 `public_zone_id`/`internal_zone_id` in external-dns and cert-manager, and the
 zone names in keycloak and cloudnative-pg-cluster. New consumers should index
 `zones` by name; external-dns already does, via its own `zones` setting.
+
+## Running it
+
+### Before you run it
+
+**Needs:**
+
+- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- Delegated zones only: the management account holding the parent zones (`spec.providers.management.account_id`) and its `Terraform-Role`; for an apex domain set `delegate_public_zone: false` instead.
+
+**Access** (the workflow has all of this; locally you need it too):
+
+- Terraform ≥ 1.15.
+- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Runs on GitHub-hosted runners: it talks to AWS APIs only.
+
+### The unit file
+
+```text
+infrastructure/environments/<tier>/<env_id>/global/dns.yaml
+state: <env_id>/global/dns/terraform.tfstate
+```
+
+The identity block is described in [`../context/README.md`](../context/README.md); `spec` is described above.
+
+### Run it
+
+Through the pipeline: Backstage dispatches `.github/workflows/terraform.yml` with `config_file` set to the unit's path and `action` `plan`, `apply` or `destroy`. Locally:
+
+```bash
+cd infrastructure/modules/dns
+terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<state region>" \
+  -backend-config="key=<env_id>/global/dns/terraform.tfstate" \
+  -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+terraform plan -var config_file=/path/to/dns.yaml -var pipeline_user=$USER
+```
+
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`dns_zone_names`, `dns_global_only`, `delegation_requires_management_role`, `apex_delegation_rejected`, `shared_zone_exists_mismatch_rejected`, `management_account_id_must_be_valid`).
+
+### Outputs
+
+| Output | |
+|---|---|
+| `zones` | Every hosted zone pair in this resource set, keyed by its config name. |
+| `zone_names` | Config keys of every zone in this resource set. |
+| `public_zone_id` | With one zone only: public zone ID. |
+| `public_zone_name` | With one zone only: public zone name. |
+| `internal_zone_id` | With one zone only: internal (private) zone ID. |
+| `internal_zone_name` | With one zone only: internal zone name. |
+
+Plus `resource_summary`, for the pipeline's summary.
+
+### Removing it
+
+Used by: cert-manager, external-dns, istio, argo-cd, kargo, langfuse, vllm (through `modules/cluster`). Destroy those first.
