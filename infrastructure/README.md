@@ -78,8 +78,6 @@ is `Terraform-Role` (created by account vending). The workflow assumes
 `spec` are just account IDs (`spec.providers.management.account_id`,
 `spec.providers.network.account_id`). Backstage only ever passes account IDs.
 
-Working examples: [`environments/sandbox/`](environments/sandbox/).
-
 ## Resource sets
 
 | Resource set | What it builds | Notes |
@@ -173,7 +171,7 @@ terraform init \
   -backend-config="bucket=acme-tfstate-111111111111" \
   -backend-config="key=vision-sandbox-jdoe/eu-west-1/core-platform/terraform.tfstate" \
   -backend-config="region=eu-west-1" -backend-config="encrypt=true" -backend-config="use_lockfile=true"
-terraform plan -var config_file="$PWD/../../environments/sandbox/vision-sandbox-jdoe/eu-west-1/core-platform.yaml"
+terraform plan -var config_file=/path/to/core-platform.yaml   # a unit YAML in the format above
 ```
 
 ## Tests
