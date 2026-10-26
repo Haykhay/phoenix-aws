@@ -5,7 +5,7 @@ CLAUDE.md
 
 # Illustrative only; the networking (IPAM, transit gateway) is redesigned in
 # its own part of the series and lands then.
-ipam/
+networking/legacy-ipam/
 
 # Terraform (also in each project's .gitignore)
 .terraform/
