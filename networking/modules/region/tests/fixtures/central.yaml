@@ -1,0 +1,19 @@
+organisation: acme
+group: platform
+environment: network
+tier: prod
+region: eu-west-1
+account_id: "222222222222"
+module_ref: main
+state:
+  bucket: acme-tfstate-222222222222
+  region: eu-west-1
+tags:
+  owner.team: platform
+  Reason: phoenix network
+  LongLive: true
+spec:
+  network:
+    hub_regions: [eu-west-1]
+    egress_mode: central
+    share_with: [arn:aws:organizations::999999999999:organization/o-example]
