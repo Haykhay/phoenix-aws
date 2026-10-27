@@ -1,22 +1,28 @@
 # hub
 
-Name resolution between the platform and on-prem, in a hub region: the hub
-DNS VPC (networking account, shared segment) with a Route 53 Resolver
-**inbound** endpoint (on-prem forwards the platform's zones to it) and, when
+Name resolution between the platform and on-prem: a DNS VPC (networking
+account, shared segment) with, in hub regions, a Route 53 Resolver
+**inbound** endpoint (on-prem forwards the platform's names to it) and, when
 `dns_forwarding` is set, an **outbound** endpoint with one forwarding rule
 per on-prem domain, shared with the organisation.
 
 Backstage writes this unit for each hub region when `hybrid` or
-`dns_forwarding` is set.
+`dns_forwarding` is set, and for **every other region** when
+`dns_forwarding` is set. Resolver rules are regional (a rule shared through
+RAM reaches other accounts in its own region only), so each region forwards
+through its own outbound endpoint and shares its own rules; outside the hubs
+there is no inbound endpoint. Each such region costs two endpoint interfaces
+(about $180 a month at list price).
 
 ## Where this runs
 
 ```text
-networking/environments/<hub region>/hub.yaml
-state: platform-network/<hub region>/hub/terraform.tfstate
+networking/environments/<region>/hub.yaml
+state: platform-network/<region>/hub/terraform.tfstate
 ```
 
-The hub region's `region` unit must be applied first.
+The region's `region` unit must be applied first. Outside the hub regions the
+plan fails without `dns_forwarding`: there would be nothing to build.
 
 ## Configuration
 
@@ -35,13 +41,14 @@ spec:
   gateway.
 - Security group: DNS (53/tcp+udp) in and out, to and from `address_space`
   and `onprem_cidrs`.
-- Endpoints (an IP in each subnet), forwarding rules, RAM share of the rules.
+- Endpoints (an IP in each subnet; inbound in hub regions only), forwarding
+  rules, RAM share of the rules.
   core-network associates every rule shared with its account with each VPC it
-  creates; the dns unit associates each environment's internal zone with this
-  VPC, so on-prem resolves environment names through the inbound endpoint.
+  creates. The environments' internal zones are public, so the inbound
+  endpoint resolves them like any other name.
 
-Rules are regional: a VPC outside the hub regions cannot use them, so it does
-not resolve on-prem domains (an open decision, see the networking design).
+Every region that runs this unit has its own rules, so VPCs in every region
+resolve the on-prem domains.
 
 ## Outputs
 

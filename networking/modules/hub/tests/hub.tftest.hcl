@@ -26,7 +26,7 @@ run "endpoints_and_rules" {
   command = plan
 
   assert {
-    condition     = aws_route53_resolver_endpoint.inbound.direction == "INBOUND" && aws_route53_resolver_endpoint.outbound[0].direction == "OUTBOUND"
+    condition     = aws_route53_resolver_endpoint.inbound[0].direction == "INBOUND" && aws_route53_resolver_endpoint.outbound[0].direction == "OUTBOUND"
     error_message = "inbound and outbound endpoints"
   }
   assert {
@@ -106,4 +106,31 @@ run "one_route_table_for_both_subnets" {
     condition     = length(module.dns_vpc.private_route_table_ids) == 1
     error_message = "both endpoint subnets share the one route table that routes to the transit gateway"
   }
+}
+
+run "non_hub_region_forwards_only" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/non_hub.yaml"
+  }
+
+  assert {
+    condition     = length(aws_route53_resolver_endpoint.inbound) == 0 && length(aws_route53_resolver_endpoint.outbound) == 1
+    error_message = "outside the hubs: an outbound endpoint only; on-prem forwards to the hubs' inbound endpoints"
+  }
+  assert {
+    condition     = toset(keys(aws_route53_resolver_rule.forward)) == toset(["corp.local", "lab.local"]) && length(aws_ram_resource_association.rules) == 2
+    error_message = "the region's own rules, shared through RAM to the region's VPCs (rules are regional)"
+  }
+}
+
+run "non_hub_region_needs_forwarding" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/non_hub_no_forwarding.yaml"
+  }
+
+  expect_failures = [aws_vpc_ipam_pool_cidr_allocation.dns]
 }

@@ -29,8 +29,9 @@ locals {
     { for seg, cidr in s.other.blocks : "shared/${cidr}" => { table = "shared", cidr = cidr } },
     s.other_region != local.first_hub || s.region == local.first_hub ? {} : merge(
       { for t in ["production", "non-production"] : "${t}/${s.other.blocks.shared}" => { table = t, cidr = s.other.blocks.shared } },
+      # shared too: the region's DNS VPC (shared) forwards to on-prem.
       {
-        for pair in setproduct(["production", "non-production"], local.network.onprem_cidrs) :
+        for pair in setproduct(["production", "non-production", "shared"], local.network.onprem_cidrs) :
         "${pair[0]}/${pair[1]}" => { table = pair[0], cidr = pair[1] }
       },
     ),

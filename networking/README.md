@@ -23,7 +23,7 @@ All run in the networking account, as one environment: `group: platform`,
 | `ipam` | `global/ipam.yaml` | IPAM, a pool per segment, a regional pool per segment per joined region, RAM shares |
 | `region` | `<region>/region.yaml` | transit gateway, its three route tables and blackholes; central egress: the egress VPC |
 | `peering` | `<region>/peering.<peer>.yaml` | peering attachment and the static routes on both sides |
-| `hub` | `<hub region>/hub.yaml` | hub DNS VPC, Route 53 Resolver endpoints, shared forwarding rules |
+| `hub` | `<region>/hub.yaml` | DNS VPC with Route 53 Resolver endpoints (inbound in hub regions) and the region's forwarding rules, shared through RAM; in every region when `dns_forwarding` is set |
 | `hybrid` | `<first hub>/hybrid.yaml` | VPN and/or Direct Connect to on-prem |
 
 A new region is applied in that order: `ipam` (the region added to
@@ -47,7 +47,7 @@ One bucket in the networking account; keys follow context
 | ipam | `platform-network/global/ipam/terraform.tfstate` |
 | region | `platform-network/<region>/region/terraform.tfstate` |
 | peering | `platform-network/<region>/peering.<peer>/terraform.tfstate` |
-| hub | `platform-network/<hub region>/hub/terraform.tfstate` |
+| hub | `platform-network/<region>/hub/terraform.tfstate` |
 | hybrid | `platform-network/<first hub>/hybrid/terraform.tfstate` |
 
 Units read each other's outputs from these keys, and core-network reads the
@@ -92,7 +92,9 @@ For a region `<new>` with no transit gateway yet:
 2. `<new>/region.yaml`; apply.
 3. `<new>/peering.<peer>.yaml` for every region that already has a transit
    gateway, hubs included; apply each.
-4. Then the environment's own units, core-network first.
+4. With `dns_forwarding` set: `<new>/hub.yaml` (the region's outbound
+   Resolver endpoint and rules); apply.
+5. Then the environment's own units, core-network first.
 
 A region is never taken away: its transit gateway, pools and peerings are
 `prevent_destroy`.
