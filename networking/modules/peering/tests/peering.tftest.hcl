@@ -186,8 +186,8 @@ run "second_hub_routes_to_tooling" {
     error_message = "the second hub reaches the tooling VPC through the first hub"
   }
   assert {
-    condition     = !contains(keys(aws_ec2_transit_gateway_route.local), "production/192.168.0.0/16")
-    error_message = "with dual_dx the second hub reaches on-prem over its own Direct Connect"
+    condition     = contains(keys(aws_ec2_transit_gateway_route.local), "production/192.168.0.0/16")
+    error_message = "with dual_dx too, the second hub reaches on-prem through the first hub, whose gateway carries both connections"
   }
 }
 

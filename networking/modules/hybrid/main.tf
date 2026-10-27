@@ -13,8 +13,8 @@ resource "terraform_data" "validation" {
       error_message = "hybrid ${local.mode} needs hybrid_settings.dx_gateway_asn and ${local.dual_dx ? 2 : 1} connection(s) ([i] near hub_regions[i])."
     }
     precondition {
-      condition     = try(local.first.transit_gateway_id, null) != null && (!local.dual_dx || try(local.second.transit_gateway_id, null) != null)
-      error_message = "Apply the region unit in every hub region before hybrid."
+      condition     = try(local.first.transit_gateway_id, null) != null
+      error_message = "Apply the region unit in ${local.region} before hybrid."
     }
   }
 }

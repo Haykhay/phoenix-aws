@@ -1,26 +1,21 @@
-# dx_vpn and dual_dx: per hub, a Direct Connect gateway, a transit virtual
-# interface on the adopter's connection near that hub (ordered by the
-# adopter; IDs in the YAML), and the gateway's association with that hub's
-# transit gateway. With dual_dx each hub has its own gateway, so the two
-# paths never share a gateway and both may advertise the same summaries.
+# dx_vpn and dual_dx: one Direct Connect gateway, associated with the first
+# hub's transit gateway, carrying a transit virtual interface on each of the
+# adopter's connections (ordered by the adopter; IDs in the YAML). Other
+# regions, the second hub included, reach on-prem through their peering with
+# the first hub.
 #
-# AWS-side paths are fixed by region (README, "Paths are fixed by region");
-# on-prem steers its own sends with AS_PATH / local preference.
+# Failover is automatic: the gateway is global and chooses among its virtual
+# interfaces by BGP. On-prem prepends its AS on the secondary connection
+# (AWS honours AS_PATH), so the primary carries traffic until it is lost.
+# One association only: AWS forbids overlapping allowed prefixes across
+# transit gateway associations of one gateway, and on-prem must learn the
+# whole segments over every connection.
 
-resource "aws_dx_gateway" "first" {
+resource "aws_dx_gateway" "this" {
   count = local.dx ? 1 : 0
 
-  name            = "${local.name_prefix}-onprem-1"
+  name            = "${local.name_prefix}-onprem"
   amazon_side_asn = tostring(local.settings.dx_gateway_asn)
-
-  depends_on = [terraform_data.validation]
-}
-
-resource "aws_dx_gateway" "second" {
-  count = local.dual_dx ? 1 : 0
-
-  name            = "${local.name_prefix}-onprem-2"
-  amazon_side_asn = tostring(try(local.settings.second_dx_gateway_asn, local.settings.dx_gateway_asn))
 
   depends_on = [terraform_data.validation]
 }
@@ -30,7 +25,7 @@ resource "aws_dx_transit_virtual_interface" "first" {
 
   name             = "${local.name_prefix}-onprem-1"
   connection_id    = local.connections[0].connection_id
-  dx_gateway_id    = aws_dx_gateway.first[0].id
+  dx_gateway_id    = aws_dx_gateway.this[0].id
   vlan             = local.connections[0].vlan
   bgp_asn          = local.connections[0].bgp_asn
   address_family   = "ipv4"
@@ -39,14 +34,14 @@ resource "aws_dx_transit_virtual_interface" "first" {
   bgp_auth_key     = try(local.connections[0].bgp_auth_key, null)
 }
 
-# Created in the connection's region (near the second hub).
+# Created in the connection's region (near the second hub), on the same gateway.
 resource "aws_dx_transit_virtual_interface" "second" {
   provider = aws.second
   count    = local.dual_dx ? 1 : 0
 
   name             = "${local.name_prefix}-onprem-2"
   connection_id    = local.connections[1].connection_id
-  dx_gateway_id    = aws_dx_gateway.second[0].id
+  dx_gateway_id    = aws_dx_gateway.this[0].id
   vlan             = local.connections[1].vlan
   bgp_asn          = local.connections[1].bgp_asn
   address_family   = "ipv4"
@@ -56,50 +51,25 @@ resource "aws_dx_transit_virtual_interface" "second" {
 }
 
 # Allowed prefixes: the three segment summaries, so on-prem learns
-# production, non-production and shared over each connection.
-resource "aws_dx_gateway_association" "first" {
+# production, non-production and shared over every connection.
+resource "aws_dx_gateway_association" "this" {
   count = local.dx ? 1 : 0
 
-  dx_gateway_id         = aws_dx_gateway.first[0].id
+  dx_gateway_id         = aws_dx_gateway.this[0].id
   associated_gateway_id = local.first.transit_gateway_id
   allowed_prefixes      = local.advertised_prefixes
 }
 
-resource "aws_dx_gateway_association" "second" {
-  provider = aws.second
-  count    = local.dual_dx ? 1 : 0
-
-  dx_gateway_id         = aws_dx_gateway.second[0].id
-  associated_gateway_id = local.second.transit_gateway_id
-  allowed_prefixes      = local.advertised_prefixes
-}
-
-resource "aws_ec2_transit_gateway_route_table_association" "dx_first" {
+resource "aws_ec2_transit_gateway_route_table_association" "dx" {
   count = local.dx ? 1 : 0
 
-  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.first[0].id
+  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.this[0].id
   transit_gateway_route_table_id = local.first.route_table_ids.shared
 }
 
-resource "aws_ec2_transit_gateway_route_table_propagation" "dx_first" {
+resource "aws_ec2_transit_gateway_route_table_propagation" "dx" {
   for_each = local.dx ? local.network.segments : {}
 
-  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.first[0].id
+  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.this[0].id
   transit_gateway_route_table_id = local.first.route_table_ids[each.key]
-}
-
-resource "aws_ec2_transit_gateway_route_table_association" "dx_second" {
-  provider = aws.second
-  count    = local.dual_dx ? 1 : 0
-
-  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.second[0].id
-  transit_gateway_route_table_id = local.second.route_table_ids.shared
-}
-
-resource "aws_ec2_transit_gateway_route_table_propagation" "dx_second" {
-  provider = aws.second
-  for_each = local.dual_dx ? local.network.segments : {}
-
-  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_dx_gateway_attachment.second[0].id
-  transit_gateway_route_table_id = local.second.route_table_ids[each.key]
 }

@@ -99,9 +99,11 @@ A region is never taken away: its transit gateway, pools and peerings are
 
 ### Losing the first hub's region (two hubs)
 
-What depends on the first hub: the tooling VPC (Backstage and its runner),
-non-hub regions' routes to the tooling VPC and to on-prem, and, unless
-`dual_dx`, the on-prem connection itself. Failover is manual:
+Losing a Direct Connect connection under `dual_dx` fails over by itself (BGP,
+inside the one Direct Connect gateway). Losing the first hub's **region** does
+not: the tooling VPC (Backstage and its runner), every region's routes to the
+tooling VPC and to on-prem, and the on-prem attachment all live there. That
+failover is manual:
 
 1. In `platform.yaml`, swap the order of `hub_regions` (the second hub becomes
    the first). Backstage rewrites `spec.network` in every unit.
@@ -109,8 +111,9 @@ non-hub regions' routes to the tooling VPC and to on-prem, and, unless
    new first hub.
 3. Bring tooling up in the new first hub (a core-network unit with
    `segment: shared` there), and re-point anything that reached the old one.
-4. Without `dual_dx`: write and apply `hybrid` in the new first hub (and
-   re-establish the on-prem side to it).
+4. Write and apply `hybrid` in the new first hub: the Direct Connect gateway
+   (or VPN) is associated with the new first hub's transit gateway. With
+   `dual_dx` the virtual interfaces stay; only the association moves.
 
 IPAM's home region cannot move (`global_region` stays the old first hub).
 Its regional pools serve their own regions; check that new VPC allocations

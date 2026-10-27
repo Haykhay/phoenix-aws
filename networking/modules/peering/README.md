@@ -41,8 +41,8 @@ On a peering with the **first hub**, the side that is not the first hub (the
 second hub included) also routes, from `production` and `non-production`:
 
 - the first hub's shared block (tooling VPC, hub DNS);
-- `onprem_cidrs`, unless that side is the second hub under `dual_dx`, which
-  reaches on-prem over its own Direct Connect.
+- `onprem_cidrs`: on-prem attaches only to the first hub (with `dual_dx`, one
+  Direct Connect gateway carrying both connections).
 
 Losing the first hub's region (two hubs): swap `hub_regions` and re-apply
 every peering (see the runbook in [`../../README.md`](../../README.md)).
@@ -56,4 +56,4 @@ every peering (see the runbook in [`../../README.md`](../../README.md)).
 `terraform test` (mock providers, region states overridden): the route matrix
 on both sides, no cross-segment route, association with `shared`, hub routes
 whichever side requests, none between two regional transit gateways, the
-second hub with and without `dual_dx`, and the missing-region check.
+second hub's routes to tooling and on-prem, and the missing-region check.

@@ -14,20 +14,11 @@ output "onprem" {
       }]
     }
     dx = !local.dx ? null : {
-      connections = [for i, c in local.connections : {
-        hub               = local.network.hub_regions[i]
-        connection_id     = c.connection_id
-        gateway_id        = [aws_dx_gateway.first, aws_dx_gateway.second][i][0].id
-        aws_side_asn      = [aws_dx_gateway.first, aws_dx_gateway.second][i][0].amazon_side_asn
-        virtual_interface = [aws_dx_transit_virtual_interface.first, aws_dx_transit_virtual_interface.second][i][0].id
-      }]
-      # AWS to on-prem is fixed by region: the second hub's region over its own
-      # connection, every other region over the first hub's (static routes
-      # through the peering; peering propagates nothing). On-prem should send
-      # over the same connection: prefer the primary for everything except the
-      # second hub's blocks, or keep its edge stateless across both.
-      primary   = { hub = local.network.first_hub, connection_id = local.connections[0].connection_id }
-      secondary = !local.dual_dx ? null : { hub = local.second_hub, connection_id = local.connections[1].connection_id, serves = local.second_hub }
+      gateway_id   = aws_dx_gateway.this[0].id
+      aws_side_asn = aws_dx_gateway.this[0].amazon_side_asn
+      primary      = { connection_id = local.connections[0].connection_id, virtual_interface = aws_dx_transit_virtual_interface.first[0].id }
+      secondary    = !local.dual_dx ? null : { connection_id = local.connections[1].connection_id, virtual_interface = aws_dx_transit_virtual_interface.second[0].id }
+      bgp_policy   = !local.dual_dx ? null : "Prepend your AS (2-3 times) on advertisements over the secondary virtual interface and give routes learned over the primary the higher local preference; both directions then use the primary and fail over to the secondary automatically."
     }
     advertised_prefixes = local.advertised_prefixes
     expected_prefixes   = local.network.onprem_cidrs
