@@ -8,7 +8,7 @@ platform's `hybrid` setting:
 | `none` | nothing | 1–2 |
 | `vpn` | customer gateway; one site-to-site VPN (two IPsec tunnels, BGP) on the first hub's transit gateway | 1 |
 | `dx_vpn` | Direct Connect gateway, a transit virtual interface on the adopter's connection, associated with the first hub; plus the VPN as backup (AWS prefers Direct Connect for equal prefixes) | 1 |
-| `dual_dx` | one Direct Connect gateway; a transit virtual interface on each of two connections (one near each hub); the gateway associated with **both** hubs | 2 |
+| `dual_dx` | per hub: a Direct Connect gateway, a transit virtual interface on the connection near that hub, and the gateway's association with that hub | 2 |
 
 Every on-prem attachment sits in the hub's `shared` table and propagates into
 all three, so on-prem reaches both segments and both reach on-prem. Which
@@ -33,6 +33,7 @@ spec:
   hybrid_settings:
     customer_gateway: { ip: 203.0.113.10, bgp_asn: 65010 }   # vpn, dx_vpn
     dx_gateway_asn: 64600                                     # dx_vpn, dual_dx
+    second_dx_gateway_asn: 64601                              # dual_dx, optional (default dx_gateway_asn)
     connections:                                              # 1 for dx_vpn, 2 for dual_dx
       - { connection_id: dxcon-..., vlan: 101, bgp_asn: 65010 }   # [i] near hub_regions[i]
       # optional per connection: amazon_address, customer_address, bgp_auth_key
@@ -41,14 +42,36 @@ spec:
 The Direct Connect connections are ordered by the adopter; this unit takes
 their IDs and creates the virtual interfaces, gateway and associations.
 
-## Prefixes
+## Prefixes and preference
 
-AWS advertises the three segment summaries (the Direct Connect gateway
+AWS advertises the three segment summaries (each Direct Connect gateway
 association's allowed prefixes); it expects `onprem_cidrs` back over BGP.
 
-**Verify at the first real `dual_dx` apply:** both gateway associations
-advertise the same summaries. If AWS rejects overlapping allowed prefixes on
-one gateway, advertise each hub's own regional blocks instead.
+With `dual_dx` the two connections land on different transit gateways
+through different Direct Connect gateways, so both advertise the same
+summaries without overlapping within a gateway.
+
+**Paths are fixed by region on the AWS side.** Transit gateway peering
+propagates nothing, so:
+
+| Traffic from | To on-prem over |
+|---|---|
+| the second hub's region | the second hub's connection (learned over BGP) |
+| every other region, the first hub's included | the first hub's connection (static route through the peering with the first hub) |
+
+AS_PATH prepending and local preference on the on-prem side decide which
+connection on-prem *sends* over, and AWS honours them, but they cannot move
+the AWS→on-prem paths above: each transit gateway sees only its own
+connection. For symmetric flows (stateful on-prem firewalls), on-prem should
+prefer the first hub's connection for everything except the second hub's
+regional blocks, and prepend on the other; or keep its edge stateless across
+both connections.
+
+**Failover.** On-prem→AWS fails over by BGP on its own. AWS→on-prem does not:
+if the first hub's connection is lost, every region but the second hub loses
+on-prem until the hubs are swapped (runbook in
+[`../../README.md`](../../README.md)). Automatic AWS-side failover would need
+dynamic routing between regions (AWS Cloud WAN), a non-goal.
 
 ## Handoff to the on-prem team
 
