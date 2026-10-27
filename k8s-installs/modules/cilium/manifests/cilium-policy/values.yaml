@@ -1,0 +1,4 @@
+# Set by k8s-installs/modules/cilium.
+allowCidrs: []
+internetExcept: []
+allowFqdns: []

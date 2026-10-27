@@ -1,0 +1,38 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: phoenix-default-egress
+spec:
+  description: Default egress for every pod; more is opened by egress_allow or namespaced CiliumNetworkPolicy.
+  endpointSelector: {}
+  egress:
+    # DNS through Cilium's DNS proxy, which FQDN rules need.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+    - toCIDR:
+        {{- toYaml .Values.allowCidrs | nindent 8 }}
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            {{- toYaml .Values.internetExcept | nindent 12 }}
+    {{- with .Values.allowFqdns }}
+    - toFQDNs:
+        {{- range . }}
+        - matchPattern: {{ . | quote }}
+        {{- end }}
+    {{- end }}
