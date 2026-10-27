@@ -3,6 +3,9 @@ CLAUDE.md
 .claude/
 .superpowers/
 
+# Design documents and implementation plans stay local, in every project.
+**/docs/superpowers/
+
 # Illustrative only; the networking (IPAM, transit gateway) is redesigned in
 # its own part of the series and lands then.
 networking/legacy-ipam/
@@ -22,4 +25,3 @@ crash.log
 *.pem
 *.key
 .DS_Store
-networking/docs/superpowers/specs/2026-10-26-networking-design.md
