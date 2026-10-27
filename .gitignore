@@ -1,15 +1,3 @@
-# Local AI-assistant and tooling files (personal, not part of the platform)
-CLAUDE.md
-.claude/
-.superpowers/
-
-# Design documents and implementation plans stay local, in every project.
-**/docs/superpowers/
-
-# Illustrative only; the networking (IPAM, transit gateway) is redesigned in
-# its own part of the series and lands then.
-networking/legacy-ipam/
-
 # Terraform (also in each project's .gitignore)
 .terraform/
 .terraform.lock.hcl
