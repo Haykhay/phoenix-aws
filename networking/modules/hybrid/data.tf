@@ -31,7 +31,7 @@ data "aws_ec2_transit_gateway_dx_gateway_attachment" "first" {
   count = local.dx ? 1 : 0
 
   transit_gateway_id = local.first.transit_gateway_id
-  dx_gateway_id      = aws_dx_gateway.this[0].id
+  dx_gateway_id      = aws_dx_gateway.first[0].id
 
   depends_on = [aws_dx_gateway_association.first]
 }
@@ -41,7 +41,7 @@ data "aws_ec2_transit_gateway_dx_gateway_attachment" "second" {
   count    = local.dual_dx ? 1 : 0
 
   transit_gateway_id = local.second.transit_gateway_id
-  dx_gateway_id      = aws_dx_gateway.this[0].id
+  dx_gateway_id      = aws_dx_gateway.second[0].id
 
   depends_on = [aws_dx_gateway_association.second]
 }

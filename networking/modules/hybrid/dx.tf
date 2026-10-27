@@ -1,14 +1,26 @@
-# dx_vpn and dual_dx: one Direct Connect gateway, a transit virtual interface
-# on each of the adopter's connections (ordered by the adopter; IDs in the
-# YAML), associated with the first hub's transit gateway, and with dual_dx the
-# second hub's too. A virtual interface is created in its connection's region,
-# hence one resource per hub.
+# dx_vpn and dual_dx: per hub, a Direct Connect gateway, a transit virtual
+# interface on the adopter's connection near that hub (ordered by the
+# adopter; IDs in the YAML), and the gateway's association with that hub's
+# transit gateway. With dual_dx each hub has its own gateway, so the two
+# paths never share a gateway and both may advertise the same summaries.
+#
+# AWS-side paths are fixed by region (README, "Paths are fixed by region");
+# on-prem steers its own sends with AS_PATH / local preference.
 
-resource "aws_dx_gateway" "this" {
+resource "aws_dx_gateway" "first" {
   count = local.dx ? 1 : 0
 
-  name            = "${local.name_prefix}-onprem"
+  name            = "${local.name_prefix}-onprem-1"
   amazon_side_asn = tostring(local.settings.dx_gateway_asn)
+
+  depends_on = [terraform_data.validation]
+}
+
+resource "aws_dx_gateway" "second" {
+  count = local.dual_dx ? 1 : 0
+
+  name            = "${local.name_prefix}-onprem-2"
+  amazon_side_asn = tostring(try(local.settings.second_dx_gateway_asn, local.settings.dx_gateway_asn))
 
   depends_on = [terraform_data.validation]
 }
@@ -18,7 +30,7 @@ resource "aws_dx_transit_virtual_interface" "first" {
 
   name             = "${local.name_prefix}-onprem-1"
   connection_id    = local.connections[0].connection_id
-  dx_gateway_id    = aws_dx_gateway.this[0].id
+  dx_gateway_id    = aws_dx_gateway.first[0].id
   vlan             = local.connections[0].vlan
   bgp_asn          = local.connections[0].bgp_asn
   address_family   = "ipv4"
@@ -27,13 +39,14 @@ resource "aws_dx_transit_virtual_interface" "first" {
   bgp_auth_key     = try(local.connections[0].bgp_auth_key, null)
 }
 
+# Created in the connection's region (near the second hub).
 resource "aws_dx_transit_virtual_interface" "second" {
   provider = aws.second
   count    = local.dual_dx ? 1 : 0
 
   name             = "${local.name_prefix}-onprem-2"
   connection_id    = local.connections[1].connection_id
-  dx_gateway_id    = aws_dx_gateway.this[0].id
+  dx_gateway_id    = aws_dx_gateway.second[0].id
   vlan             = local.connections[1].vlan
   bgp_asn          = local.connections[1].bgp_asn
   address_family   = "ipv4"
@@ -42,14 +55,12 @@ resource "aws_dx_transit_virtual_interface" "second" {
   bgp_auth_key     = try(local.connections[1].bgp_auth_key, null)
 }
 
-# Allowed prefixes: the three segment summaries, so on-prem learns production,
-# non-production and shared. With dual_dx both associations advertise the
-# same summaries; verify at first real apply that the gateway accepts that,
-# else advertise each hub's own regional blocks (see README).
+# Allowed prefixes: the three segment summaries, so on-prem learns
+# production, non-production and shared over each connection.
 resource "aws_dx_gateway_association" "first" {
   count = local.dx ? 1 : 0
 
-  dx_gateway_id         = aws_dx_gateway.this[0].id
+  dx_gateway_id         = aws_dx_gateway.first[0].id
   associated_gateway_id = local.first.transit_gateway_id
   allowed_prefixes      = local.advertised_prefixes
 }
@@ -58,7 +69,7 @@ resource "aws_dx_gateway_association" "second" {
   provider = aws.second
   count    = local.dual_dx ? 1 : 0
 
-  dx_gateway_id         = aws_dx_gateway.this[0].id
+  dx_gateway_id         = aws_dx_gateway.second[0].id
   associated_gateway_id = local.second.transit_gateway_id
   allowed_prefixes      = local.advertised_prefixes
 }

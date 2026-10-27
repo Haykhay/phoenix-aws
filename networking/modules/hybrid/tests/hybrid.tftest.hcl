@@ -34,7 +34,7 @@ run "vpn_plans_only_vpn" {
   command = plan
 
   assert {
-    condition     = length(aws_vpn_connection.this) == 1 && length(aws_dx_gateway.this) == 0 && length(aws_dx_transit_virtual_interface.first) == 0
+    condition     = length(aws_vpn_connection.this) == 1 && length(aws_dx_gateway.first) == 0 && length(aws_dx_transit_virtual_interface.first) == 0
     error_message = "vpn: one VPN, no Direct Connect"
   }
   assert {
@@ -55,7 +55,7 @@ run "dx_vpn_plans_both" {
   }
 
   assert {
-    condition     = length(aws_vpn_connection.this) == 1 && length(aws_dx_transit_virtual_interface.first) == 1 && length(aws_dx_transit_virtual_interface.second) == 0 && length(aws_dx_gateway_association.first) == 1 && length(aws_dx_gateway_association.second) == 0
+    condition     = length(aws_vpn_connection.this) == 1 && length(aws_dx_gateway.first) == 1 && length(aws_dx_gateway.second) == 0 && length(aws_dx_transit_virtual_interface.first) == 1 && length(aws_dx_transit_virtual_interface.second) == 0 && length(aws_dx_gateway_association.first) == 1 && length(aws_dx_gateway_association.second) == 0
     error_message = "dx_vpn: one Direct Connect plus the backup VPN"
   }
   assert {
@@ -63,7 +63,7 @@ run "dx_vpn_plans_both" {
     error_message = "the gateway advertises the three segment summaries from the first hub"
   }
   assert {
-    condition     = aws_dx_transit_virtual_interface.first[0].connection_id == "dxcon-example1" && aws_dx_transit_virtual_interface.first[0].vlan == 101 && aws_dx_gateway.this[0].amazon_side_asn == "64600"
+    condition     = aws_dx_transit_virtual_interface.first[0].connection_id == "dxcon-example1" && aws_dx_transit_virtual_interface.first[0].vlan == 101 && aws_dx_gateway.first[0].amazon_side_asn == "64600"
     error_message = "the virtual interface sits on the adopter's connection"
   }
 }
@@ -76,12 +76,20 @@ run "dual_dx_associates_both_hubs" {
   }
 
   assert {
-    condition     = length(aws_vpn_connection.this) == 0 && length(aws_dx_gateway.this) == 1 && length(aws_dx_transit_virtual_interface.first) == 1 && length(aws_dx_transit_virtual_interface.second) == 1
-    error_message = "dual_dx: one gateway, a virtual interface on each connection, no VPN"
+    condition     = length(aws_vpn_connection.this) == 0 && length(aws_dx_gateway.first) == 1 && length(aws_dx_gateway.second) == 1 && length(aws_dx_transit_virtual_interface.first) == 1 && length(aws_dx_transit_virtual_interface.second) == 1
+    error_message = "dual_dx: a Direct Connect gateway and a virtual interface per hub, no VPN"
   }
   assert {
-    condition     = aws_dx_gateway_association.second[0].associated_gateway_id == "tgw-use1" && aws_dx_transit_virtual_interface.second[0].connection_id == "dxcon-example2"
-    error_message = "the gateway is associated with both hubs; the second connection serves the second hub"
+    condition     = aws_dx_gateway_association.first[0].associated_gateway_id == "tgw-euw1" && aws_dx_gateway_association.second[0].associated_gateway_id == "tgw-use1" && aws_dx_transit_virtual_interface.second[0].connection_id == "dxcon-example2"
+    error_message = "each hub's connection lands on that hub's transit gateway"
+  }
+  assert {
+    condition     = toset(aws_dx_gateway_association.second[0].allowed_prefixes) == toset(["10.0.0.0/10", "10.64.0.0/10", "10.128.0.0/10"])
+    error_message = "both gateways advertise the segment summaries; separate gateways, so no overlap within one"
+  }
+  assert {
+    condition     = output.onprem.dx.primary.connection_id == "dxcon-example1" && output.onprem.dx.primary.hub == "eu-west-1" && output.onprem.dx.secondary.connection_id == "dxcon-example2"
+    error_message = "the first hub's connection is the primary: every region but the second hub reaches on-prem through it"
   }
 }
 
@@ -113,7 +121,7 @@ run "none_plans_nothing" {
   }
 
   assert {
-    condition     = length(aws_vpn_connection.this) + length(aws_customer_gateway.this) + length(aws_dx_gateway.this) + length(aws_dx_transit_virtual_interface.first) + length(aws_dx_transit_virtual_interface.second) == 0
+    condition     = length(aws_vpn_connection.this) + length(aws_customer_gateway.this) + length(aws_dx_gateway.first) + length(aws_dx_gateway.second) + length(aws_dx_transit_virtual_interface.first) + length(aws_dx_transit_virtual_interface.second) == 0
     error_message = "hybrid none: nothing"
   }
 }
