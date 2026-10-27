@@ -8,8 +8,6 @@ helper scripts.
 
 ![Architecture](docs/architecture/phoenix-architecture.png)
 
-Design: [`docs/superpowers/specs/2026-10-23-backstage-driven-terraform-design.md`](docs/superpowers/specs/2026-10-23-backstage-driven-terraform-design.md)
-
 ## How it works
 
 1. A person in a **group** (every account belongs to one group) fills in a
