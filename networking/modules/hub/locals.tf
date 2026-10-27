@@ -9,5 +9,9 @@ locals {
   forwarding = local.network.dns_forwarding
   forward    = length(local.forwarding) > 0
 
+  # Resolver rules are regional: every region forwards through its own
+  # outbound endpoint. On-prem forwards to the hubs' inbound endpoints only.
+  is_hub = contains(local.network.hub_regions, local.region)
+
   dns_azs = try(local.spec.dns_azs, slice(data.aws_availability_zones.this.names, 0, 2))
 }

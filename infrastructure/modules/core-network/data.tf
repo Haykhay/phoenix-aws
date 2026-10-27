@@ -31,7 +31,7 @@ locals {
   tgw_id       = try(local.region_state.transit_gateway_id, null)
 
   # Forwarding rules shared from the hub (dns_forwarding), associated with
-  # every VPC. Rules are regional: outside the hub regions there are none.
+  # every VPC. Rules are regional: each region's hub unit shares its own.
   resolver_rule_ids = try(data.aws_route53_resolver_rules.shared[0].resolver_rule_ids, [])
   resolver_rule_associations = {
     for pair in setproduct(sort(tolist(local.resolver_rule_ids)), keys(local.vpcs)) :

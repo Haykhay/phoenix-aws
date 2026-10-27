@@ -10,7 +10,7 @@ output "dns_vpc_region" {
 
 output "inbound_endpoint_ips" {
   description = "Addresses on-prem forwards the platform's zones to."
-  value       = [for a in aws_route53_resolver_endpoint.inbound.ip_address : a.ip]
+  value       = flatten([for e in aws_route53_resolver_endpoint.inbound : [for a in e.ip_address : a.ip]])
 }
 
 output "resolver_rule_ids" {

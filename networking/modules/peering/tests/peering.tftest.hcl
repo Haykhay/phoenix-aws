@@ -44,9 +44,9 @@ run "routes_match_the_matrix_on_both_sides" {
       "production/10.0.0.0/13", "non-production/10.64.0.0/13",
       "shared/10.0.0.0/13", "shared/10.64.0.0/13", "shared/10.128.0.0/13",
       "production/10.128.0.0/13", "non-production/10.128.0.0/13",
-      "production/192.168.0.0/16", "non-production/192.168.0.0/16",
+      "production/192.168.0.0/16", "non-production/192.168.0.0/16", "shared/192.168.0.0/16",
     ])
-    error_message = "this side: same segment to same segment, shared to all, plus the first hub's shared block and on-prem"
+    error_message = "this side: same segment to same segment, shared to all, plus the first hub's shared block and on-prem (shared too: the region's DNS VPC forwards to on-prem)"
   }
   assert {
     condition = toset(keys(aws_ec2_transit_gateway_route.peer)) == toset([
@@ -123,7 +123,7 @@ run "hub_as_requester_puts_hub_routes_on_the_peer_side" {
   }
 
   assert {
-    condition     = length(aws_ec2_transit_gateway_route.local) == 5 && length(aws_ec2_transit_gateway_route.peer) == 9 && contains(keys(aws_ec2_transit_gateway_route.peer), "production/192.168.0.0/16")
+    condition     = length(aws_ec2_transit_gateway_route.local) == 5 && length(aws_ec2_transit_gateway_route.peer) == 10 && contains(keys(aws_ec2_transit_gateway_route.peer), "shared/192.168.0.0/16")
     error_message = "the hub routes go on whichever side is not the first hub"
   }
 }

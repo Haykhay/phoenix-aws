@@ -42,7 +42,8 @@ second hub included) also routes, from `production` and `non-production`:
 
 - the first hub's shared block (tooling VPC, hub DNS);
 - `onprem_cidrs`: on-prem attaches only to the first hub (with `dual_dx`, one
-  Direct Connect gateway carrying both connections).
+  Direct Connect gateway carrying both connections). Also from `shared`,
+  where the region's DNS VPC forwards on-prem queries.
 
 Losing the first hub's region (two hubs): swap `hub_regions` and re-apply
 every peering (see the runbook in [`../../README.md`](../../README.md)).

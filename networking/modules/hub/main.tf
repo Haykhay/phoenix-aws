@@ -1,5 +1,6 @@
-# Hub DNS VPC (shared segment): the Route 53 Resolver endpoints on-prem
-# forwards to, and forwards through. Two private subnets, nothing public.
+# DNS VPC (shared segment), in every region when dns_forwarding is set: the
+# region's outbound Resolver endpoint and rules; in a hub region also the
+# inbound endpoint on-prem forwards to. Two private subnets, nothing public.
 resource "aws_vpc_ipam_pool_cidr_allocation" "dns" {
   ipam_pool_id   = try(local.region_state.pool_ids.shared, null)
   netmask_length = try(local.spec.dns_vpc_netmask, 24)
@@ -11,6 +12,10 @@ resource "aws_vpc_ipam_pool_cidr_allocation" "dns" {
     precondition {
       condition     = local.ready
       error_message = "Apply the region unit in ${local.region} before the hub unit."
+    }
+    precondition {
+      condition     = local.is_hub || local.forward
+      error_message = "${local.region} is not a hub region: the unit only forwards there, so it needs spec.network.dns_forwarding."
     }
   }
 }
@@ -97,8 +102,10 @@ resource "aws_vpc_security_group_egress_rule" "dns" {
   to_port           = 53
 }
 
-# On-prem forwards the platform's zones here.
+# On-prem forwards the platform's zones here (hub regions only).
 resource "aws_route53_resolver_endpoint" "inbound" {
+  count = local.is_hub ? 1 : 0
+
   name               = "${local.name_prefix}-inbound"
   direction          = "INBOUND"
   security_group_ids = [aws_security_group.resolver.id]
