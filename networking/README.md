@@ -52,3 +52,66 @@ One bucket in the networking account; keys follow context
 
 Units read each other's outputs from these keys, and core-network reads the
 `region` unit's.
+
+## Runbooks
+
+### First-time setup (once, by the adopter)
+
+1. From the organisation's **management account**, delegate IPAM
+   administration to the networking account and let RAM share inside the
+   organisation:
+
+   ```sh
+   aws ec2 enable-ipam-organization-admin-account --delegated-admin-account-id <networking account id>
+   aws ram enable-sharing-with-aws-organization
+   ```
+
+2. Write `phoenix/platform.yaml` in the Backstage repository (the settings
+   table in the networking design: hub regions, address space, egress mode,
+   hybrid, on-prem ranges, DNS forwarding, `share_with`). `address_space` and
+   the netmasks cannot change after step 3.
+3. Apply, in order, each through the workflow (`action: apply`):
+   1. `global/ipam.yaml`, with `regions: [<first hub>]` and
+      `global_region: <first hub>` (IPAM's home region, which never moves);
+   2. `<first hub>/region.yaml`;
+   3. `<first hub>/hub.yaml`, when `hybrid` or `dns_forwarding` is set;
+   4. `<first hub>/hybrid.yaml`, when `hybrid` is not `none`;
+   5. with two hubs: the second hub's `region.yaml`, its
+      `peering.<first hub>.yaml` and its `hub.yaml`, then `hybrid` again
+      (`dual_dx` associates the second hub);
+   6. the tooling VPC: a core-network unit in the tooling account, first hub
+      region, with `segment: shared` on its VPC.
+4. Hand the on-prem team `terraform output onprem` from `hybrid` and
+   `inbound_endpoint_ips` from `hub`.
+
+### Adding a region (what Backstage does; by hand only if it cannot)
+
+For a region `<new>` with no transit gateway yet:
+
+1. `global/ipam.yaml`: append `<new>` to `regions` (never remove one); apply.
+2. `<new>/region.yaml`; apply.
+3. `<new>/peering.<peer>.yaml` for every region that already has a transit
+   gateway, hubs included; apply each.
+4. Then the environment's own units, core-network first.
+
+A region is never taken away: its transit gateway, pools and peerings are
+`prevent_destroy`.
+
+### Losing the first hub's region (two hubs)
+
+What depends on the first hub: the tooling VPC (Backstage and its runner),
+non-hub regions' routes to the tooling VPC and to on-prem, and, unless
+`dual_dx`, the on-prem connection itself. Failover is manual:
+
+1. In `platform.yaml`, swap the order of `hub_regions` (the second hub becomes
+   the first). Backstage rewrites `spec.network` in every unit.
+2. Re-apply every `peering` unit: the hub routes move to the peerings with the
+   new first hub.
+3. Bring tooling up in the new first hub (a core-network unit with
+   `segment: shared` there), and re-point anything that reached the old one.
+4. Without `dual_dx`: write and apply `hybrid` in the new first hub (and
+   re-establish the on-prem side to it).
+
+IPAM's home region cannot move (`global_region` stays the old first hub).
+Its regional pools serve their own regions; check that new VPC allocations
+still succeed while the home region is impaired before relying on it.
