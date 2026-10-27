@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cilium-policy
+description: Phoenix default cluster-wide egress policy
+type: application
+version: 0.1.0
