@@ -31,7 +31,8 @@ removal fails the apply rather than freeing a block that routes, firewalls and
 on-prem still point at.
 
 Regional pools are described `<segment>/<region>`, hold one `region_netmask`
-block (the first free one in the segment) and hand out `/17`–`/22`.
+block (the first free one in the segment) and hand out `/17`–`/22` (shared:
+`/17`–`/28`, for the egress and hub DNS VPCs).
 
 ## Before the first apply
 

@@ -3,7 +3,7 @@ group: research
 environment: sandbox
 tier: prod
 region: eu-west-1
-account_id: "111111111111"
+account_id: "333333333333"
 module_ref: main
 state:
   bucket: acme-tfstate-111111111111
@@ -15,6 +15,7 @@ tags:
 spec:
   network:
     hub_regions: [eu-west-1]
+    tooling_account_id: "333333333333"
     egress_mode: central
     onprem_cidrs: [192.168.0.0/16]
   providers:

@@ -29,9 +29,7 @@ locals {
     segment = null
     netmask = try(module.context.spec.vpc_netmask, module.context.tier == "sandbox" ? 20 : 18)
 
-    # Pin the pool by ID instead of the region unit's pool for the segment.
-    ipam_pool_id = null
-    azs          = tolist([])
+    azs = tolist([])
 
     enable_nat_gateway = !local.central_egress
     single_nat_gateway = true

@@ -29,10 +29,14 @@ resource "terraform_data" "validation" {
       condition     = local.network_configured
       error_message = "core-network needs spec.network (the platform settings) and spec.providers.network.account_id and .state_bucket: every VPC joins its region's network."
     }
-    # A tier never picks the other segment: the only override is shared.
+    # A tier never picks the other segment. The only override is shared, and
+    # only in the tooling account: shared is reached from, and reaches, both
+    # segments.
     precondition {
-      condition     = alltrue([for vpc_name, vpc in local.merged_vpcs : vpc.segment == null || vpc.segment == "shared"])
-      error_message = "A VPC's `segment` may only be set to shared (the tooling VPC); otherwise the tier decides it."
+      condition = alltrue([for vpc_name, vpc in local.merged_vpcs : vpc.segment == null || (
+        vpc.segment == "shared" && module.context.account_id == try(local.platform_network.tooling_account_id, null)
+      )])
+      error_message = "A VPC's `segment` may only be set to shared, and only in the tooling account (spec.network.tooling_account_id); otherwise the tier decides it."
     }
     precondition {
       condition     = alltrue([for vpc_name, vpc in local.vpcs : vpc.netmask >= 17 && vpc.netmask <= 22])
@@ -56,7 +60,7 @@ resource "terraform_data" "vpc_created_by" {
 resource "aws_vpc_ipam_pool_cidr_allocation" "this" {
   for_each = local.vpcs
 
-  ipam_pool_id   = each.value.ipam_pool_id != null ? each.value.ipam_pool_id : try(local.region_state.pool_ids[each.value.segment], null)
+  ipam_pool_id   = try(local.region_state.pool_ids[each.value.segment], null)
   netmask_length = each.value.netmask
   description    = "${each.value.name} (${local.environment}, account ${data.aws_caller_identity.current.account_id})"
 
@@ -68,8 +72,14 @@ resource "aws_vpc_ipam_pool_cidr_allocation" "this" {
       condition     = length(setintersection(keys(each.value), local.literal_network_keys)) == 0
       error_message = "VPC ${each.key} has literal network keys (${join(", ", local.literal_network_keys)}): addresses come from IPAM only."
     }
+    # Every regional pool is shared with the organisation: a pinned pool could
+    # put a sandbox in production address space. The segment picks the pool.
     precondition {
-      condition     = each.value.ipam_pool_id != null || try(local.region_state.pool_ids[each.value.segment], null) != null
+      condition     = !contains(keys(each.value), "ipam_pool_id")
+      error_message = "VPC ${each.key} sets ipam_pool_id: the pool comes from the VPC's segment only."
+    }
+    precondition {
+      condition     = try(local.region_state.pool_ids[each.value.segment], null) != null
       error_message = "No ${each.value.segment} pool for ${local.region}: the region's network (networking `region` unit) does not exist yet."
     }
   }

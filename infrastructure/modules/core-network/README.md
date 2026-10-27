@@ -64,8 +64,7 @@ is module defaults (`locals.tf`) → `vpc_defaults` → the individual VPC.
 | `enabled` | `true` | The file existing enables the unit; `false` plans a destroy of everything in it |
 | `default_vpc` | — | Required once more than one VPC exists |
 | `name` | `<name_prefix>-<vpc key>` | Name tag / prefix for that VPC's resources |
-| `segment` | from the tier | Only `shared` may be set (the tooling VPC); `prod` → production, `sandbox`/`stage`/`uat` → non-production |
-| `ipam_pool_id` | the region's pool for the segment | Pin the pool by ID |
+| `segment` | from the tier | Only `shared` may be set, and only in the tooling account (`spec.network.tooling_account_id`); `prod` → production, `sandbox`/`stage`/`uat` → non-production |
 | `netmask` | `spec.vpc_netmask`, else sandbox `20`, others `18` | Size of the VPC, `/17` to `/22` |
 | `azs` | — | Exactly 3 |
 | `enable_nat_gateway` | `false` central, `true` independent | Follows the platform's `egress_mode` |

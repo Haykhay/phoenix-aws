@@ -78,15 +78,16 @@ locals {
   # production, 1 non-production, 2 shared, 3+ reserved.
   network_settings = try(local.spec.network, null)
   platform_network_settings = local.network_settings == null ? null : merge({
-    hub_regions     = []
-    address_space   = "10.0.0.0/8"
-    segment_netmask = 10
-    region_netmask  = 13
-    egress_mode     = "central"
-    hybrid          = "none"
-    onprem_cidrs    = []
-    dns_forwarding  = {}
-    share_with      = []
+    hub_regions        = []
+    tooling_account_id = null
+    address_space      = "10.0.0.0/8"
+    segment_netmask    = 10
+    region_netmask     = 13
+    egress_mode        = "central"
+    hybrid             = "none"
+    onprem_cidrs       = []
+    dns_forwarding     = {}
+    share_with         = []
   }, local.network_settings)
 
   address_prefix = local.platform_network_settings == null ? null : tonumber(split("/", local.platform_network_settings.address_space)[1])

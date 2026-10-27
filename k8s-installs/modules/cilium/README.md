@@ -18,7 +18,7 @@ pod and allows:
 - DNS to kube-dns, through Cilium's DNS proxy (so FQDN rules work);
 - EKS Pod Identity (`169.254.170.23`) and instance metadata (`169.254.169.254`);
 - the API server, the node and other nodes;
-- the internet: everything outside RFC 1918.
+- the internet: everything outside RFC 1918 and outside `onprem_cidrs`.
 
 Everything else private (other environments, on-prem) is denied until it is
 opened, by the platform through `egress_allow` below, or by a team with a

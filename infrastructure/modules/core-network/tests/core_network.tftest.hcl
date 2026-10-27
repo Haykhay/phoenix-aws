@@ -172,3 +172,23 @@ run "network_required" {
 
   expect_failures = [terraform_data.validation, aws_vpc_ipam_pool_cidr_allocation.this]
 }
+
+run "shared_only_for_the_tooling_account" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/shared_not_tooling.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "pool_cannot_be_pinned" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/pinned_pool.yaml"
+  }
+
+  expect_failures = [aws_vpc_ipam_pool_cidr_allocation.this]
+}

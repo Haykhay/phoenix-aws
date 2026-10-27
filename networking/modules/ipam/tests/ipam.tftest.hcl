@@ -77,3 +77,16 @@ run "home_region_must_operate" {
 
   expect_failures = [aws_vpc_ipam.this]
 }
+
+run "shared_pools_fit_the_platform_vpcs" {
+  command = plan
+
+  assert {
+    condition     = aws_vpc_ipam_pool.regional["eu-west-1/shared"].allocation_max_netmask_length == 28
+    error_message = "shared pools accept the /24 egress and DNS VPCs (and smaller)"
+  }
+  assert {
+    condition     = aws_vpc_ipam_pool.regional["eu-west-1/production"].allocation_max_netmask_length == 22 && aws_vpc_ipam_pool.regional["eu-west-1/non-production"].allocation_max_netmask_length == 22
+    error_message = "environment VPCs stay /17 to /22"
+  }
+}
