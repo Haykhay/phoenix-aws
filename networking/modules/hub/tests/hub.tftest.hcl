@@ -98,3 +98,12 @@ run "region_must_exist" {
 
   expect_failures = [aws_vpc_ipam_pool_cidr_allocation.dns]
 }
+
+run "one_route_table_for_both_subnets" {
+  command = plan
+
+  assert {
+    condition     = length(module.dns_vpc.private_route_table_ids) == 1
+    error_message = "both endpoint subnets share the one route table that routes to the transit gateway"
+  }
+}

@@ -42,7 +42,9 @@ locals {
       ["169.254.170.23/32", "169.254.169.254/32"],
       try(local.egress_allow.cidrs, []),
     )
-    internetExcept = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+    # Internet = outside RFC 1918 and outside on-prem (whose ranges need not
+    # be RFC 1918).
+    internetExcept = distinct(concat(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"], try(module.context.platform_network.onprem_cidrs, [])))
     allowFqdns     = try(local.egress_allow.fqdns, [])
   }
 }

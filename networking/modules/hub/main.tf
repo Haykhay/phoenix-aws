@@ -24,6 +24,10 @@ module "dns_vpc" {
 
   private_subnets      = [for i in range(2) : cidrsubnet(aws_vpc_ipam_pool_cidr_allocation.dns.cidr, 2, i)]
   private_subnet_names = [for i in range(2) : "${local.name_prefix}-dns-${i + 1}"]
+
+  # No NAT here; this only collapses the module's per-subnet private route
+  # tables into one, so both subnets get the transit gateway routes below.
+  single_nat_gateway = true
 }
 
 resource "aws_ec2_transit_gateway_vpc_attachment" "dns" {

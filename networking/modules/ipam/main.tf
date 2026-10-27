@@ -53,8 +53,10 @@ resource "aws_vpc_ipam_pool" "regional" {
   locale              = each.value.region
   description         = "${each.value.segment}/${each.value.region}"
 
+  # Environment VPCs are /17 to /22. The shared segment also holds the
+  # platform's own small VPCs (central egress, hub DNS: /24 by default).
   allocation_min_netmask_length = 17
-  allocation_max_netmask_length = 22
+  allocation_max_netmask_length = each.value.segment == "shared" ? 28 : 22
 
   tags = {
     Name    = "${local.name_prefix}-${each.value.segment}-${each.value.region}"

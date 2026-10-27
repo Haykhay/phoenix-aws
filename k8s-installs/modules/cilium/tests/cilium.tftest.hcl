@@ -109,3 +109,16 @@ run "disabled_plans_nothing" {
     error_message = "spec.enabled: false installs nothing"
   }
 }
+
+run "onprem_denied_even_outside_rfc1918" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/onprem_public.yaml"
+  }
+
+  assert {
+    condition     = contains(yamldecode(helm_release.policy[0].values[0]).internetExcept, "100.64.0.0/16")
+    error_message = "on-prem ranges are never 'internet', whatever their addresses"
+  }
+}
