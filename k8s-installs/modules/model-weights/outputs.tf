@@ -23,6 +23,11 @@ output "cache_path" {
   value       = "/models/${local.key}"
 }
 
+output "size_gib" {
+  description = "Declared size of the weights in GiB; vllm sizes its startup budget from it."
+  value       = local.config.size_gib
+}
+
 output "resource_summary" {
   value = {
     environment  = local.environment

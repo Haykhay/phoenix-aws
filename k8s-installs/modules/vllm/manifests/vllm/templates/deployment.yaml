@@ -29,7 +29,8 @@ spec:
         - name: vllm
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           args:
-            - --model={{ .Values.model }}
+            - --model={{ .Values.modelPath }}
+            - --served-model-name={{ .Values.servedName }}
             - --port=8000
             - --tensor-parallel-size={{ .Values.gpu.perReplica }}
             {{- with .Values.maxModelLen }}
@@ -39,12 +40,9 @@ spec:
             - {{ . | quote }}
             {{- end }}
           env:
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.name }}-hf-token
-                  key: token
-                  optional: true
+            # Weights come from the cache only; never the internet.
+            - name: HF_HUB_OFFLINE
+              value: "1"
           ports:
             - name: http
               containerPort: 8000
@@ -62,15 +60,19 @@ spec:
               path: /health
               port: http
             periodSeconds: 10
-            failureThreshold: 180 # up to 30 min to download and load
+            failureThreshold: {{ div .Values.startupSeconds 10 }} # max(30 min, 6 s per GiB of weights)
           volumeMounts:
-            - name: cache
-              mountPath: /root/.cache/huggingface
+            - name: weights
+              mountPath: {{ .Values.cache.mountPath }}
+              subPath: {{ .Values.cache.subPath }}
+              readOnly: true
             - name: shm
               mountPath: /dev/shm
       volumes:
-        - name: cache
-          emptyDir: {}
+        - name: weights
+          persistentVolumeClaim:
+            claimName: {{ .Values.cache.claim }}
+            readOnly: true
         - name: shm
           emptyDir:
             medium: Memory

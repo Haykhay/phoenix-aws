@@ -1,8 +1,10 @@
 locals {
   defaults = {
     enabled = true
-    # From Backstage's phoenix-model entity: Hugging Face model ID and GPU type.
-    model            = null
+    # Served model name; defaults to the weights unit's model.
+    model = null
+    # The model-weights version to serve, and the GPU type (Backstage fills both).
+    version          = null
     gpu              = null
     replicas         = 1
     gpus_per_replica = 1
@@ -23,6 +25,9 @@ locals {
   gateway  = try(data.terraform_remote_state.istio.outputs.gateways.internal, null)
   hostname = "${local.slug}-${local.cluster_key}.${try(local.gateway.domain, "istio-missing")}"
 
-  # Gated models need a Hugging Face token; optional otherwise.
-  hf_token_secret = "${local.organisation}/${local.environment}/models/hf-token"
+  weights     = try(data.terraform_remote_state.weights.outputs, {})
+  fsx         = try(data.terraform_remote_state.fsx.outputs, {})
+  served_name = coalesce(local.config.model, try(local.weights.model, null), local.slug)
+  # Loading from FSx is minutes, not hours, but a 600B model still needs time.
+  startup_seconds = max(1800, try(local.weights.size_gib, 0) * 6)
 }

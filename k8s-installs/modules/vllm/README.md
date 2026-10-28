@@ -7,7 +7,8 @@ catalog entity.
 
 | `spec` | Default | |
 |---|---|---|
-| `model` | **required** | Hugging Face ID, e.g. `meta-llama/Llama-3.1-8B-Instruct` |
+| `version` | **required** | the version `model-weights.<slug>` copied; the plan fails on a mismatch |
+| `model` | the weights unit's `model` | served model name: what clients send as `model` |
 | `gpu` | **required** | GPU type; its `karpenter-nodepool.<gpu>` unit must exist |
 | `replicas` | `1` | |
 | `gpus_per_replica` | `1` | tensor parallelism |
@@ -18,17 +19,28 @@ What it creates, in `models`:
 
 - **vLLM** `vllm-<slug>` on the GPU pool (`nodeSelector phoenix/gpu=<gpu>`,
   tolerates `nvidia.com/gpu`), OpenAI-compatible API on 8000; Alloy scrapes its
-  metrics. Startup allows 30 minutes to download and load the model.
+  metrics. Loads the weights from the FSx cache: claim `model-cache` mounted
+  read-only (subPath `weights`) at `/models`, `--model=/models/<model>/<version>`,
+  `HF_HUB_OFFLINE=1`. Startup allows `max(1800, size_gib × 6)` seconds.
+- **Prepull DaemonSet** `vllm-<slug>-prepull` on the same pool: pulls the
+  serving image onto each node as it joins (no GPU requested), so a new
+  replica waits only for the weights.
 - **InferencePool** `vllm-<slug>-pool` with its endpoint picker (Gateway API
   Inference Extension chart `v1.5.0`, istio provider; requests trimmed to
   500m/1Gi for sandbox). The picker chooses a replica per request from
   vLLM's own load metrics.
 - **HTTPRoute** on istio's internal gateway: `https://<slug>-<cluster>.<internal zone>/v1`
   (output `endpoint`), with an external-dns record.
-- **Hugging Face token** (optional, for gated models) from
-  `<organisation>/<env_id>/models/hf-token` (property `token`).
+The plan fails clearly without the cluster's istio unit, the GPU pool unit,
+the model's weights or the cache claim.
 
-The plan fails clearly without the cluster's istio unit or the GPU pool unit.
+> **Breaking change.** vLLM no longer downloads from Hugging Face. Every
+> existing `vllm.<slug>.yaml` needs `spec.version`, and `spec.model` is now the
+> served name, not a Hugging Face ID: move the ID to
+> `model-weights.<slug>.yaml` (`source.uri`) with its commit SHA as `version`.
+> The Hugging Face token moved with it. Apply, in order: `model-store`,
+> `model-cache.<cluster>`, `aws-fsx-csi-driver`, `model-weights.<slug>`, then
+> this unit.
 
 ## Running it
 
@@ -37,20 +49,21 @@ The plan fails clearly without the cluster's istio unit or the GPU pool unit.
 **Infrastructure units**, applied first:
 
 - `core-platform` for the environment and region: the cluster this unit targets (the plan fails without it)
+- `model-store` in `<group>-shared/<region>` and `model-cache.<cluster>`: the weights bucket and the cluster's FSx cache
 - `dns` (the model's hostname, through external-dns)
 
 **Cluster components**, applied first on the same cluster (Backstage orders them from the catalog's `dependsOn`):
 
 - `istio` (the plan fails without it)
 - `karpenter-nodepool` (the plan fails without it)
+- `aws-fsx-csi-driver` (the plan fails without it): state `<env_id>/<region>/k8s/<cluster>/aws-fsx-csi-driver/terraform.tfstate`
+- `model-weights.<slug>`, same slug as this unit, at `spec.version` (the plan fails without it or on another version): state `<env_id>/<region>/k8s/<cluster>/model-weights.<slug>/terraform.tfstate`
 - `nvidia-gpu-operator`
-- `external-secrets`
 - `external-dns`
 
 **You provide:**
 
-- `spec.model` and `spec.gpu` (Backstage fills both from the `phoenix-model` entity; the plan fails without them).
-- For a gated model only: a Hugging Face token in Secrets Manager at `<organisation>/<env_id>/models/hf-token`, property `token`.
+- `spec.version` and `spec.gpu` (Backstage fills both; the plan fails without them).
 
 **Access** (the workflow has all of this; locally you need it too):
 
@@ -79,14 +92,14 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `model_required`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`).
 
 ### Outputs
 
 | Output | |
 |---|---|
 | `endpoint` | OpenAI-compatible endpoint of this model. |
-| `model` | Hugging Face ID of the model served. |
+| `model` | Served model name: what clients put in the request's model field. |
 
 Plus `resource_summary`, for the pipeline's summary.
 

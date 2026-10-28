@@ -4,8 +4,8 @@ output "endpoint" {
 }
 
 output "model" {
-  description = "Hugging Face ID of the model served."
-  value       = local.config.model
+  description = "Served model name: what clients put in the request's model field."
+  value       = local.served_name
 }
 
 output "resource_summary" {
@@ -14,7 +14,8 @@ output "resource_summary" {
     region       = local.region
     cluster      = local.cluster_key
     resource_set = "vllm"
-    model        = local.config.model
+    model        = local.served_name
+    version      = local.config.version
     gpu          = local.config.gpu
     image_tag    = local.config.image_tag
   }

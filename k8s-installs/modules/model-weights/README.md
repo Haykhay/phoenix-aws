@@ -40,10 +40,13 @@ spec:
 | `sha256` | `null` | 64 hex characters; required for https |
 | `size_gib` | `200` | |
 
-A new version is a new unit file and a new prefix
-(`release weights-<model>-<SHA's first 7, or the label>`): the old version
-stays in S3 and in the cache until you remove it. Versions are never
-overwritten: the writer role cannot delete.
+One unit per model, named like the vllm unit that serves it
+(`model-weights.<slug>.yaml` beside `vllm.<slug>.yaml`): vllm reads this
+unit's state. A new version is the same file with a new `spec.version`: a new
+prefix and a new release (`weights-<model>-<SHA's first 7, or the label>`);
+the old version stays in S3 and in the cache until you remove it. Versions
+are never overwritten: the writer role cannot delete. Apply this unit first,
+then vllm with the same `spec.version`.
 
 | Image | Pinned |
 |---|---|
@@ -83,7 +86,7 @@ k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/model-weights.<mode
 state: <env_id>/<region>/k8s/<cluster>/model-weights.<model>/terraform.tfstate
 ```
 
-One file per model and version; the instance name is lowercase letters, digits and hyphens. The identity block is the same as every unit's (see [`../../README.md`](../../README.md#a-units-yaml)); `spec` is described above. `spec.enabled: false` plans nothing.
+One file per model, with the same instance name as its vllm unit; the instance name is lowercase letters, digits and hyphens. The identity block is the same as every unit's (see [`../../README.md`](../../README.md#a-units-yaml)); `spec` is described above. `spec.enabled: false` plans nothing.
 
 ### Run it
 
@@ -108,6 +111,7 @@ Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_
 | `source` | Where the weights came from: type (huggingface, s3, https) and uri. |
 | `s3_prefix` | Copied weights: s3://<bucket>/<model>/<version>/, complete once _COMPLETE exists. |
 | `cache_path` | Where model servers find the weights through the FSx cache. |
+| `size_gib` | Declared size of the weights in GiB; vllm sizes its startup budget from it. |
 
 Plus `resource_summary`, for the pipeline's summary.
 

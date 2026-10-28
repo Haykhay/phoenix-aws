@@ -57,6 +57,10 @@ run "plans_with_defaults" {
     error_message = "vllm finds the weights at /models/<model>/<version>"
   }
   assert {
+    condition     = output.size_gib == 200
+    error_message = "vllm sizes its startup budget from the declared size"
+  }
+  assert {
     condition     = !strcontains(helm_release.this[0].values[0], "nvidia.com/gpu") && !strcontains(helm_release.this[0].values[0], "neuron") && !strcontains(helm_release.this[0].values[0], "phoenix/gpu")
     error_message = "the copy runs on CPU nodes, never a GPU pool"
   }

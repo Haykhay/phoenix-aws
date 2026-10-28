@@ -22,6 +22,28 @@ data "terraform_remote_state" "gpu_pool" {
   defaults = {}
 }
 
+# The model's weights, copied by model-weights.<slug> on this cluster.
+data "terraform_remote_state" "weights" {
+  backend = "s3"
+  config = {
+    bucket = module.context.state.bucket
+    region = module.context.state.region
+    key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/model-weights.${local.slug}/terraform.tfstate"
+  }
+  defaults = {}
+}
+
+# The read-only claim on the cluster's FSx model cache.
+data "terraform_remote_state" "fsx" {
+  backend = "s3"
+  config = {
+    bucket = module.context.state.bucket
+    region = module.context.state.region
+    key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/aws-fsx-csi-driver/terraform.tfstate"
+  }
+  defaults = {}
+}
+
 resource "terraform_data" "validation" {
   lifecycle {
     precondition {
@@ -29,8 +51,20 @@ resource "terraform_data" "validation" {
       error_message = "vllm is per model: name the file vllm.<model slug>.yaml."
     }
     precondition {
-      condition     = !local.config.enabled || (local.config.model != null && local.config.gpu != null)
-      error_message = "spec.model (Hugging Face ID) and spec.gpu (GPU type) are required — Backstage fills both from the phoenix-model entity."
+      condition     = !local.config.enabled || (local.config.version != null && local.config.gpu != null)
+      error_message = "spec.version (the model-weights version) and spec.gpu (GPU type) are required — Backstage fills both."
+    }
+    precondition {
+      condition     = !local.config.enabled || can(local.weights.cache_path)
+      error_message = "no weights for ${local.slug} on cluster ${local.cluster_key}: apply model-weights.${local.slug} first."
+    }
+    precondition {
+      condition     = !local.config.enabled || !can(local.weights.version) || try(local.weights.version == local.config.version, false)
+      error_message = "spec.version is ${coalesce(local.config.version, "unset")} but model-weights.${local.slug} copied ${try(local.weights.version, "nothing")}: apply that version's weights first, or pin the version it has."
+    }
+    precondition {
+      condition     = !local.config.enabled || can(local.fsx.pvc_name)
+      error_message = "no model cache claim on cluster ${local.cluster_key}: apply aws-fsx-csi-driver first."
     }
     precondition {
       condition     = !local.config.enabled || local.gateway != null
@@ -76,14 +110,21 @@ resource "helm_release" "server" {
   timeout   = 1800 # model download + load
 
   values = [yamlencode({
-    name          = local.server
-    model         = local.config.model
-    replicas      = local.config.replicas
-    maxModelLen   = local.config.max_model_len
-    extraArgs     = local.config.extra_args
-    image         = { repository = "vllm/vllm-openai", tag = local.config.image_tag }
-    gpu           = { type = local.config.gpu, perReplica = local.config.gpus_per_replica }
-    hfTokenSecret = local.hf_token_secret
+    name           = local.server
+    modelPath      = try(local.weights.cache_path, "")
+    servedName     = local.served_name
+    startupSeconds = local.startup_seconds
+    cache = {
+      claim     = try(local.fsx.pvc_name, "")
+      mountPath = try(local.fsx.mount_path, "")
+      subPath   = try(local.fsx.sub_path, "")
+    }
+    prepull     = true
+    replicas    = local.config.replicas
+    maxModelLen = local.config.max_model_len
+    extraArgs   = local.config.extra_args
+    image       = { repository = "vllm/vllm-openai", tag = local.config.image_tag }
+    gpu         = { type = local.config.gpu, perReplica = local.config.gpus_per_replica }
     route = {
       hostname = local.hostname
       gateway  = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }

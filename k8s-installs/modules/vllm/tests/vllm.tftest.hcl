@@ -78,6 +78,29 @@ override_data {
   }
 }
 
+override_data {
+  target = data.terraform_remote_state.weights
+  values = {
+    outputs = {
+      model      = "llama-3-1-8b"
+      version    = "0123456789abcdef0123456789abcdef01234567"
+      cache_path = "/models/llama-3-1-8b/0123456789abcdef0123456789abcdef01234567"
+      size_gib   = 200
+    }
+  }
+}
+
+override_data {
+  target = data.terraform_remote_state.fsx
+  values = {
+    outputs = {
+      pvc_name   = "model-cache"
+      mount_path = "/models"
+      sub_path   = "weights"
+    }
+  }
+}
+
 run "plans_with_defaults" {
   command = plan
 
@@ -87,13 +110,24 @@ run "plans_with_defaults" {
   }
   assert {
     condition = alltrue([
-      yamldecode(helm_release.server[0].values[0]).model == "meta-llama/Llama-3.1-8B-Instruct",
+      yamldecode(helm_release.server[0].values[0]).modelPath == "/models/llama-3-1-8b/0123456789abcdef0123456789abcdef01234567",
+      yamldecode(helm_release.server[0].values[0]).servedName == "llama-3-1-8b",
       yamldecode(helm_release.server[0].values[0]).image.tag == "v0.31.0",
       yamldecode(helm_release.server[0].values[0]).gpu.type == "l4",
       yamldecode(helm_release.server[0].values[0]).gpu.perReplica == 1,
-      yamldecode(helm_release.server[0].values[0]).hfTokenSecret == "acme/research-sandbox/models/hf-token",
+      !can(yamldecode(helm_release.server[0].values[0]).hfTokenSecret),
     ])
-    error_message = "the model runs on its GPU pool with the platform's pinned vLLM; HF token from the environment's models path"
+    error_message = "the model loads from the FSx cache at its pinned version, on its GPU pool, with the platform's pinned vLLM; no Hugging Face token"
+  }
+  assert {
+    condition = yamldecode(helm_release.server[0].values[0]).cache == {
+      claim = "model-cache", mountPath = "/models", subPath = "weights"
+    }
+    error_message = "the model-cache claim is mounted (read-only, in the chart) with subPath weights at /models"
+  }
+  assert {
+    condition     = local.startup_seconds == 1800 && yamldecode(helm_release.server[0].values[0]).startupSeconds == 1800
+    error_message = "the startup budget is max(1800, size_gib * 6) seconds"
   }
   assert {
     condition = alltrue([
@@ -158,11 +192,11 @@ run "missing_istio_rejected" {
   expect_failures = [terraform_data.validation]
 }
 
-run "model_required" {
+run "version_required" {
   command = plan
 
   variables {
-    config_file = "tests/fixtures/vllm.no-model.yaml"
+    config_file = "tests/fixtures/vllm.no-version.yaml"
   }
 
   expect_failures = [terraform_data.validation]
@@ -178,5 +212,84 @@ run "disabled_plans_nothing" {
   assert {
     condition     = length(helm_release.server) + length(helm_release.pool) == 0
     error_message = "spec.enabled: false installs nothing"
+  }
+}
+
+run "served_name_overrides" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.llama-3-8b-named.yaml"
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.server[0].values[0]).servedName == "llama-chat" && output.model == "llama-chat"
+    error_message = "spec.model is the served model name when set"
+  }
+}
+
+run "startup_budget_scales_with_size" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.weights
+    values = {
+      outputs = {
+        model      = "llama-3-1-8b"
+        version    = "0123456789abcdef0123456789abcdef01234567"
+        cache_path = "/models/llama-3-1-8b/0123456789abcdef0123456789abcdef01234567"
+        size_gib   = 1200
+      }
+    }
+  }
+
+  assert {
+    condition     = local.startup_seconds == 7200
+    error_message = "a 1200 GiB model gets 1200 * 6 seconds to start"
+  }
+}
+
+run "version_mismatch_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.other-version.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "missing_weights_rejected" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.weights
+    values = { outputs = {} }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "missing_cache_rejected" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.fsx
+    values = { outputs = {} }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "prepull_on_model_pool" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      yamldecode(helm_release.server[0].values[0]).prepull == true,
+      yamldecode(helm_release.server[0].values[0]).gpu.type == "l4",
+      yamldecode(helm_release.server[0].values[0]).image.tag == "v0.31.0",
+    ])
+    error_message = "a prepull DaemonSet pulls the serving image onto the model's pool (phoenix/gpu=l4) before the model starts"
   }
 }

@@ -14,4 +14,4 @@ tags:
   owner.team: research
   Reason: test
   LongLive: false
-spec: { enabled: false, model: x/y, gpu: l4 }
+spec: { enabled: false, gpu: l4 }
