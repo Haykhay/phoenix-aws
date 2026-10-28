@@ -20,6 +20,16 @@ Needs, applied first: cert-manager (certificates), aws-load-balancer-controller
 `prevent_destroy`: a weekend teardown removes this unit after everything that
 uses them.
 
+A `Telemetry` adds `consumer` (from `x-phoenix-consumer`) and `request_host`
+to the internal gateway's request metrics, for grafana-stack's Model serving
+dashboard.
+
+The internal NLB keeps callers' own addresses
+(`preserve_client_ip.enabled=true`; IP targets drop them by default): vllm's
+model access is decided by the caller's CIDR. A caller in the same VPC as a
+gateway pod can't reach that pod through the NLB with this on (AWS hairpin);
+callers sit in other environments' VPCs, so that is not a path models use.
+
 ## Running it
 
 ### Before you run it
@@ -65,7 +75,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/istio.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `gateway_and_inference_crds`, `external_gateway_on_request`, `no_dns_rejected`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `gateway_and_inference_crds`, `external_gateway_on_request`, `no_dns_rejected`, `disabled_plans_nothing`, `internal_nlb_preserves_client_ip`, `gateway_metrics_carry_consumer`).
 
 ### Outputs
 

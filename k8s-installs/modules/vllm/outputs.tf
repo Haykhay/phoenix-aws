@@ -4,8 +4,13 @@ output "endpoint" {
 }
 
 output "model" {
-  description = "Hugging Face ID of the model served."
-  value       = local.config.model
+  description = "Served model name: what clients put in the request's model field."
+  value       = local.served_name
+}
+
+output "llm_d_options" {
+  description = "llm-d options on for this model ([] = the default path)."
+  value       = local.llm_d_on
 }
 
 output "resource_summary" {
@@ -14,8 +19,11 @@ output "resource_summary" {
     region       = local.region
     cluster      = local.cluster_key
     resource_set = "vllm"
-    model        = local.config.model
+    model        = local.served_name
+    version      = local.config.version
     gpu          = local.config.gpu
-    image_tag    = local.config.image_tag
+    image_tag    = local.hardware.image.tag
+    hardware     = local.config.hardware
+    llm_d        = local.llm_d_on
   }
 }

@@ -133,3 +133,21 @@ run "disabled_plans_nothing" {
     error_message = "spec.enabled: false installs nothing"
   }
 }
+
+run "internal_nlb_preserves_client_ip" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.extras[0].values[0]).gateways.internal.serviceAnnotations["service.beta.kubernetes.io/aws-load-balancer-target-group-attributes"] == "preserve_client_ip.enabled=true"
+    error_message = "the internal gateway sees callers' own addresses (IP targets don't preserve them by default): model access is by caller CIDR"
+  }
+}
+
+run "gateway_metrics_carry_consumer" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.extras[0].values[0]).telemetry.consumerTags == true
+    error_message = "the gateways' request metrics carry consumer (x-phoenix-consumer) and request_host, for the Model serving dashboard"
+  }
+}

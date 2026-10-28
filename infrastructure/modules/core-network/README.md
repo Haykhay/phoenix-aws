@@ -74,7 +74,7 @@ is module defaults (`locals.tf`) → `vpc_defaults` → the individual VPC.
 | `tgw_destination_cidrs` | central `0.0.0.0/0`; independent `address_space` + `onprem_cidrs` | Private routes toward the transit gateway |
 | `enable_vpc_endpoints` | `false` | Per-VPC cost: ~15 interface endpoints × AZ. Interface endpoints do not span VPCs |
 | `enable_elb_subnet_tags` | `false` | Load balancer subnet discovery tags — see below. Turn on before any load balancer exists in the VPC |
-| `endpoint_services` | 15 common services | Includes `s3`, created as a gateway endpoint |
+| `endpoint_services` | 15 common services | Includes `s3`, created as a gateway endpoint ; **model serving needs it**: `model-cache` fails the plan without the S3 gateway endpoint |
 
 There is no literal `cidr` or subnet list: a VPC carrying `cidr`,
 `private_subnets_data`, `private_subnets_platform` or `public_subnets` is
@@ -310,6 +310,7 @@ Tests, no AWS needed: `terraform init -backend=false && terraform test` (segment
 | `networks` | All VPCs in this environment/region, keyed by VPC name. |
 | `default_vpc_name` | VPC that resource sets bind to unless they set `vpc` explicitly. |
 | `vpc_names` | Names of every configured VPC. |
+| `long_live` | Whether this environment's network is LongLive (survives weekend teardowns). |
 | `name_prefix` | Naming prefix for account/region-level network resources. |
 | `vpc_id` | Default VPC: ID. |
 | `vpc_cidr_block` | Default VPC: CIDR block (from IPAM). |

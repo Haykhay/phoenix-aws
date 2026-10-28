@@ -1,0 +1,37 @@
+# As AWS's k8s-neuron-monitor-daemonset.yml: neuron-monitor piped into its
+# Prometheus exporter on 8000.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: neuron-monitor
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: neuron-monitor
+  template:
+    metadata:
+      labels:
+        app: neuron-monitor
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      containers:
+        - name: neuron-monitor
+          image: {{ .Values.image }}
+          command: ["/opt/bin/entrypoint.sh"]
+          args: ["--port", "8000", "--neuron-monitor-config", "/opt/aws/neuron/bin/neuron-monitor.conf"]
+          ports:
+            - name: metrics
+              containerPort: 8000
+          env:
+            - { name: GOMEMLIMIT, value: 160MiB }
+          resources:
+            requests: { cpu: 250m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            privileged: true # reads the Neuron devices

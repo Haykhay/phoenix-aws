@@ -14,6 +14,11 @@ spec:
 {{- range .Values.nodeClass.securityGroupIds }}
     - id: {{ . | quote }}
 {{- end }}
+{{- with .Values.nodeClass.capacityReservations }}
+  # Used first; see the NodePool's capacity types.
+  capacityReservationSelectorTerms:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:

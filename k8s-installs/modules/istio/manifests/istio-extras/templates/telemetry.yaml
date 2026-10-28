@@ -1,0 +1,22 @@
+{{- if .Values.telemetry.consumerTags }}
+# Gateway request metrics (istio_requests_total, istio_request_duration_*)
+# gain consumer (set by vllm's access filter) and request_host (the model's
+# hostname): grafana-stack's Model serving dashboard groups by both.
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: model-consumer-tags
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-name: istio-internal
+  metrics:
+    - providers:
+        - name: prometheus
+      overrides:
+        - match: { metric: ALL_METRICS, mode: CLIENT_AND_SERVER }
+          tagOverrides:
+            consumer: { value: "request.headers['x-phoenix-consumer'] | 'none'" }
+            request_host: { value: "request.host | 'unknown'" }
+{{- end }}

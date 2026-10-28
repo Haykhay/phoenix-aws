@@ -14,4 +14,4 @@ tags:
   owner.team: research
   Reason: test
   LongLive: false
-spec: { model: meta-llama/Llama-3.1-8B-Instruct, gpu: l4 }
+spec: { gpu: l4, version: 0123456789abcdef0123456789abcdef01234567 }

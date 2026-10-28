@@ -7,6 +7,10 @@ spec:
     metadata:
       labels:
         phoenix/gpu: {{ .Values.gpuType | quote }}
+        phoenix/accelerator: {{ .Values.accelerator.name | quote }}
+        {{- if .Values.efa }}
+        phoenix/efa: "true"
+        {{- end }}
     spec:
       nodeClassRef:
         group: karpenter.k8s.aws
@@ -14,7 +18,7 @@ spec:
         name: {{ .Values.name }}
       expireAfter: {{ .Values.expireAfter }}
       taints:
-        - key: nvidia.com/gpu
+        - key: {{ .Values.accelerator.taint }}
           value: "true"
           effect: NoSchedule
       requirements:
@@ -24,11 +28,11 @@ spec:
         - key: karpenter.k8s.aws/instance-family
           operator: In
           values: {{ toJson .Values.instanceFamilies }}
-        - key: karpenter.k8s.aws/instance-gpu-count
+        - key: {{ .Values.accelerator.countLabel }}
           operator: Lt
           values: [{{ add1 .Values.gpuCountMax | quote }}]
   limits:
-    nvidia.com/gpu: {{ .Values.gpuLimit }}
+    {{ .Values.accelerator.resource }}: {{ .Values.gpuLimit }}
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: {{ .Values.consolidateAfter }}

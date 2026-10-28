@@ -1,0 +1,17 @@
+organisation: acme
+group: research
+environment: sandbox
+
+tier: sandbox
+region: eu-west-1
+cluster: "1"
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: test
+  LongLive: false
+spec: { instance_families: [p5], gpu_count_max: 8, capacity_reservations: [{ id: cr-0123 }] }

@@ -1,0 +1,17 @@
+organisation: acme
+group: research
+environment: sandbox
+
+tier: sandbox
+region: eu-west-1
+cluster: "1"
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: test
+  LongLive: false
+spec: { gpu: l4, version: 0123456789abcdef0123456789abcdef01234567, llm_d: { wide_ep: true } }

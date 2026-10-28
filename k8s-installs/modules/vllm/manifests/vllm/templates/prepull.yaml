@@ -1,0 +1,37 @@
+{{- if .Values.prepull }}
+# Pulls the serving image onto every node of the model's pool as it joins, so
+# a new replica waits for the weights, not for a multi-GB image. Requests no
+# GPU: it never holds one.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.name }}-prepull
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}-prepull
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}-prepull
+    spec:
+      nodeSelector:
+        phoenix/gpu: {{ .Values.gpu.type | quote }}
+      tolerations:
+        - key: {{ .Values.accelerator.taint }}
+          operator: Exists
+          effect: NoSchedule
+      initContainers:
+        - name: pull
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/bin/true"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10 # 2024
+          resources:
+            requests: { cpu: 1m, memory: 8Mi }
+            limits: { memory: 16Mi }
+{{- end }}
