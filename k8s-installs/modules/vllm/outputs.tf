@@ -8,6 +8,11 @@ output "model" {
   value       = local.served_name
 }
 
+output "llm_d_options" {
+  description = "llm-d options on for this model ([] = the default path)."
+  value       = local.llm_d_on
+}
+
 output "resource_summary" {
   value = {
     environment  = local.environment
@@ -19,5 +24,6 @@ output "resource_summary" {
     gpu          = local.config.gpu
     image_tag    = local.hardware.image.tag
     hardware     = local.config.hardware
+    llm_d        = local.llm_d_on
   }
 }

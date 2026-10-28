@@ -1,3 +1,5 @@
+{{- if not .Values.llmD }}
+# Default path. With any llm-d option, llm-d.yaml renders the server instead.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -93,3 +95,4 @@ spec:
     - name: http
       port: 8000
       targetPort: http
+{{- end }}

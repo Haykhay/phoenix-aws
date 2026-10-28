@@ -495,3 +495,229 @@ run "multi_node_on_efa_pool_allowed" {
     error_message = "multi-node over two nodes on an EFA pool passes every rule"
   }
 }
+
+# --- Task 9: composition ---------------------------------------------------
+
+run "default_render_unchanged" {
+  command = plan
+
+  assert {
+    condition = helm_release.server[0].values[0] == yamlencode({
+      name           = "vllm-llama-3-8b"
+      modelPath      = "/models/llama-3-1-8b/0123456789abcdef0123456789abcdef01234567"
+      servedName     = "llama-3-1-8b"
+      startupSeconds = 1800
+      cache          = { claim = "model-cache", mountPath = "/models", subPath = "weights" }
+      prepull        = true
+      replicas       = 1
+      maxModelLen    = null
+      extraArgs      = []
+      image          = { repository = "vllm/vllm-openai", tag = "v0.31.0" }
+      command        = []
+      accelerator    = { resource = "nvidia.com/gpu", taint = "nvidia.com/gpu" }
+      tensorParallel = 1
+      gpu            = { type = "l4", perReplica = 1 }
+      route = {
+        hostname = "llama-3-8b-1.internal.sandbox.research.example.com"
+        gateway  = { name = "istio-internal", namespace = "istio-system" }
+        pool     = "vllm-llama-3-8b-pool"
+      }
+    })
+    error_message = "with no llm-d options the server renders exactly as the default path"
+  }
+  assert {
+    condition     = length(helm_release.pool) == 1 && length(helm_release.router) == 0 && output.llm_d_options == []
+    error_message = "the default path keeps the inferencepool chart and no llm-d router"
+  }
+}
+
+run "option_routing" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.routing.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      length(helm_release.pool) == 0,
+      helm_release.router[0].name == "vllm-routing-pool",
+      helm_release.router[0].version == "v0.11.0",
+      strcontains(helm_release.router[0].values[0], "prefix-cache-scorer"),
+      yamldecode(helm_release.router[0].values[0]).provider.name == "istio",
+      output.endpoint == "https://routing-1.internal.sandbox.research.example.com/v1",
+      output.llm_d_options == ["routing"],
+    ])
+    error_message = "routing swaps in the llm-d router (same pool name, so the route and endpoint stay) with the prefix-cache scorer"
+  }
+}
+
+run "option_kv_offload" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.kv-offload.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = jsondecode(yamldecode(helm_release.server[0].values[0]).llmD.kvTransferConfig).kv_connector == "OffloadingConnector"
+    error_message = "kv_offload sets vLLM's OffloadingConnector"
+  }
+}
+
+run "option_flow_control" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.flow.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = contains(yamldecode(local.epp_config).featureGates, "flowControl") && length(yamldecode(local.epp_config).flowControl.priorityBands) == 3
+    error_message = "flow_control turns on the picker's flow control with priority bands"
+  }
+}
+
+run "option_autoscaling" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.autoscale.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.minReplicas == 1,
+      yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.maxReplicas == 6,
+      yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.targetKind == "Deployment",
+    ])
+    error_message = "autoscaling never goes to zero (min_replicas 0 becomes 1)"
+  }
+}
+
+run "option_multi_node" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.multi-node.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      length(yamldecode(helm_release.server[0].values[0]).llmD.sets) == 1,
+      yamldecode(helm_release.server[0].values[0]).llmD.sets[0].nodes == 2,
+      contains(yamldecode(helm_release.server[0].values[0]).llmD.sets[0].args, "--pipeline-parallel-size=2"),
+      yamldecode(helm_release.server[0].values[0]).llmD.efa.enabled == true,
+    ])
+    error_message = "multi_node renders one LeaderWorkerSet of nodes_per_replica nodes, pipeline-parallel across them, over EFA"
+  }
+}
+
+run "option_wide_ep_single_node" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.wide-ep-one.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "option_pd_with_kv_offload" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.pd-kv.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-h200", node_selector = { "phoenix/gpu" = "h200" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      [for s in yamldecode(helm_release.server[0].values[0]).llmD.sets : s.role] == ["prefill", "decode"],
+      [for s in yamldecode(helm_release.server[0].values[0]).llmD.sets : s.sidecar] == [false, true],
+      jsondecode(yamldecode(helm_release.server[0].values[0]).llmD.kvTransferConfig).kv_connector == "MultiConnector",
+      strcontains(yamldecode(helm_release.server[0].values[0]).llmD.kvTransferConfig, "LIBFABRIC"),
+      strcontains(local.epp_config, "disagg-profile-handler"),
+    ])
+    error_message = "P/D renders prefill and decode sets (decode behind the routing sidecar), NIXL over EFA (LIBFABRIC) combined with offloading, and the picker's P/D profiles"
+  }
+}
+
+run "wide_ep_600b_fixture" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.deepseek.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-h200", node_selector = { "phoenix/gpu" = "h200" }, efa = true, capacity_reservations = [{ id = "cr-0123" }] } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      alltrue(values(local.option_checks)),
+      [for s in yamldecode(helm_release.server[0].values[0]).llmD.sets : s.nodes] == [2, 2],
+      contains(yamldecode(helm_release.server[0].values[0]).llmD.sets[1].args, "--enable-expert-parallel"),
+      contains(yamldecode(helm_release.server[0].values[0]).llmD.sets[1].args, "--data-parallel-size=$((LWS_GROUP_SIZE * 8))"),
+      yamldecode(helm_release.server[0].values[0]).image.repository == "public.ecr.aws/deep-learning-containers/vllm",
+      join(",", sort(output.llm_d_options)) == "multi_node,pd_disaggregation,routing,wide_ep",
+    ])
+    error_message = "the day-one ~600B MoE: wide EP over two-node prefill and decode groups, P/D and routing, EFA image, on a reserved EFA pool"
+  }
+}

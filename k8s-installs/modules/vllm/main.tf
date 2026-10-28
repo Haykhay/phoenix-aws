@@ -100,8 +100,10 @@ resource "terraform_data" "validation" {
   }
 }
 
+# Default path: the Inference Extension's endpoint picker. Any llm-d option
+# swaps it for the llm-d router (llm_d.tf), under the same pool name.
 resource "helm_release" "pool" {
-  count            = local.config.enabled ? 1 : 0
+  count            = local.config.enabled && !local.llm_d_any ? 1 : 0
   name             = local.pool_name
   repository       = "oci://registry.k8s.io/gateway-api-inference-extension/charts"
   chart            = "inferencepool"
@@ -132,7 +134,7 @@ resource "helm_release" "server" {
   namespace = local.namespace
   timeout   = 1800 # model download + load
 
-  values = [yamlencode({
+  values = [yamlencode(merge({
     name           = local.server
     modelPath      = try(local.weights.cache_path, "")
     servedName     = local.served_name
@@ -146,7 +148,7 @@ resource "helm_release" "server" {
     replicas       = local.config.replicas
     maxModelLen    = local.config.max_model_len
     extraArgs      = local.config.extra_args
-    image          = local.hardware.image
+    image          = local.efa_on ? { repository = "public.ecr.aws/deep-learning-containers/vllm", tag = local.config.efa_image_tag } : local.hardware.image
     command        = local.hardware.command
     accelerator    = local.hardware.accelerator
     tensorParallel = coalesce(local.config.tensor_parallel_size, local.config.gpus_per_replica)
@@ -156,7 +158,7 @@ resource "helm_release" "server" {
       gateway  = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }
       pool     = local.pool_name
     }
-  })]
+  }, [for v in [{ llmD = local.llm_d_values }] : v if local.llm_d_any]...))]
 
-  depends_on = [helm_release.pool]
+  depends_on = [helm_release.pool, helm_release.router]
 }

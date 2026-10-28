@@ -19,11 +19,22 @@ locals {
       pd_disaggregation = false
       wide_ep           = false
     }
-    gpus_per_replica = 1
-    max_model_len    = null
-    extra_args       = []
-    image_tag        = "v0.31.0"
-    hardware         = "nvidia" # or neuron: must match the pool's accelerator
+    gpus_per_replica = 1 # per node when multi_node
+    # Per option (see README): autoscaling, pd_disaggregation, kv_offload, EFA.
+    min_replicas       = 1
+    max_replicas       = 4
+    autoscale_target   = 16 # running requests per replica (llm-d's KEDA default)
+    prefill_replicas   = 1
+    decode_replicas    = 1
+    kv_offload_cpu_gib = 100
+    efa_interfaces     = 1
+    router_chart       = "v0.11.0"                                # llm-d-router-gateway, ships with llm-d v0.10.0 (2026-09-29)
+    disagg_sidecar_tag = "v0.11.0"                                # llm-d-router-disagg-sidecar, same release
+    efa_image_tag      = "0.30.0-gpu-py312-cu130-ubuntu24.04-ec2" # AWS vLLM DLC with EFA, llm-d v0.10.0's aws-efa image
+    max_model_len      = null
+    extra_args         = []
+    image_tag          = "v0.31.0"
+    hardware           = "nvidia" # or neuron: must match the pool's accelerator
     # Neuron: tensor parallelism counts NeuronCores, not devices.
     tensor_parallel_size = null                                               # default: gpus_per_replica
     neuron_image_tag     = "0.24.0.1.1.0-neuronx-py313-sdk2.32.0-ubuntu24.04" # 2026-08-18, Neuron SDK 2.32

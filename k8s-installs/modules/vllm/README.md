@@ -34,26 +34,54 @@ What it creates, in `models`:
   vLLM's own load metrics.
 - **HTTPRoute** on istio's internal gateway: `https://<slug>-<cluster>.<internal zone>/v1`
   (output `endpoint`), with an external-dns record.
-**llm-d options** (`spec.llm_d`, all `false`; all off is the default path,
-vLLM + endpoint picker, with no llm-d unit needed):
+**llm-d options** (`spec.llm_d`, all `false`). All off is the default path:
+vLLM + the Inference Extension's endpoint picker, no llm-d unit needed. Any
+option on swaps the picker for the llm-d router (`llm-d-router-gateway`
+`v0.11.0`, from llm-d `v0.10.0`) under the same pool name, so the HTTPRoute
+and the endpoint stay the same; its picker config is built from the options.
+Output `llm_d_options` lists what is on.
 
-| Option | |
-|---|---|
-| `routing` | prefix-cache, load and session aware scheduling |
-| `kv_offload` | tiered KV cache (CPU, then local disk) |
-| `flow_control` | multi-tenant QoS |
-| `autoscaling` | SLO-aware; never to zero |
-| `batch` | batch serving |
-| `multi_node` | one replica over `nodes_per_replica` (≥ 2) nodes, LeaderWorkerSet |
-| `pd_disaggregation` | prefill/decode split |
-| `wide_ep` | wide expert parallelism (needs `multi_node`) |
+- **`routing`**: the picker scores by prefix-cache affinity (`prefix-cache-scorer`),
+  queue depth and KV-cache use, so repeated prompts and sessions land where
+  their cache is warm.
+- **`kv_offload`**: vLLM's `OffloadingConnector` keeps evicted KV blocks in CPU
+  memory (`kv_offload_cpu_gib`, default `100`).
+- **`flow_control`**: requests queue in the picker in three priority bands
+  (100, 0, −10), round-robin fair within a band by
+  `x-gateway-inference-fairness-id` (Task 10 sets it per caller), instead of
+  piling onto saturated replicas.
+- **`autoscaling`**: a KEDA ScaledObject on the router's running-request count
+  in Mimir (`autoscale_target` per replica, default `16`), between
+  `max(1, min_replicas)` and `max_replicas` (default `4`); never to zero. A
+  5-minute stabilisation window covers model start. Needs the llm-d unit's KEDA.
+- **`multi_node`**: each replica is a LeaderWorkerSet group of
+  `nodes_per_replica` nodes, `gpus_per_replica` each: tensor parallel inside a
+  node, pipeline parallel across nodes. Workers run `--headless`.
+- **`pd_disaggregation`**: separate prefill (`prefill_replicas`) and decode
+  (`decode_replicas`) sets; decode sits behind llm-d's routing sidecar
+  (`v0.11.0`) and KV moves over NIXL, on EFA (`LIBFABRIC`) when the pool has it.
+  With `kv_offload` too, both connectors run (`MultiConnector`).
+- **`wide_ep`**: expert parallelism over data-parallel ranks across the LWS
+  group (`--enable-expert-parallel`, DP size = nodes × GPUs). Needs `multi_node`.
+- **`batch`**: deferred — llm-d `v0.10.0`'s batch gateway is experimental; the
+  plan rejects it as not in the release.
 
-The plan checks them (`option_checks`) and names every rule broken:
+On an EFA pool, multi_node, P/D and wide EP use AWS's vLLM image with EFA
+(`public.ecr.aws/deep-learning-containers/vllm:<efa_image_tag>`, the image
+llm-d's AWS overlay uses), request `vpc.amazonaws.com/efa`
+(`efa_interfaces`, default `1`) and add `IPC_LOCK`.
+
+The plan checks the options (`option_checks`) and names every rule broken:
 `nvidia_only`, `wide_ep_needs_multi_node`, `multi_node_needs_nodes`,
 `efa_required` (multi_node, pd_disaggregation, wide_ep need a pool with
 `efa: true`), `llm_d_installed` (the cluster's `llm-d` unit, only when an option
 is on) and `available_in_release` (the option is in that unit's
 `supported_options`).
+
+The day-one ~600B MoE (`tests/fixtures/llm-d/vllm.deepseek.yaml`): multi_node +
+wide_ep + pd_disaggregation + routing, 8 GPUs × 2 nodes per group, on an EFA
+P5/P6 pool. That needs a reservation in practice: see
+[`karpenter-nodepool`'s "Bringing a reservation or Capacity Block"](../karpenter-nodepool/README.md#bringing-a-reservation-or-capacity-block).
 
 **Neuron** (`hardware: neuron`, default path only, no llm-d options): the
 Neuron build of vLLM, started as `python -m vllm.entrypoints.openai.api_server`
@@ -123,7 +151,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`, `default_render_unchanged`, `option_routing`, `option_kv_offload`, `option_flow_control`, `option_autoscaling`, `option_multi_node`, `option_wide_ep_single_node`, `option_pd_with_kv_offload`, `wide_ep_600b_fixture`).
 
 ### Outputs
 
@@ -131,6 +159,7 @@ Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_
 |---|---|
 | `endpoint` | OpenAI-compatible endpoint of this model. |
 | `model` | Served model name: what clients put in the request's model field. |
+| `llm_d_options` | llm-d options on for this model ([] = the default path). |
 
 Plus `resource_summary`, for the pipeline's summary.
 

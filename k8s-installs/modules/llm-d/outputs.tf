@@ -16,5 +16,6 @@ output "resource_summary" {
     resource_set = "llm-d"
     llm_d        = local.config.llm_d
     lws_chart    = try(helm_release.lws[0].version, null)
+    keda_chart   = try(helm_release.keda[0].version, null)
   }
 }

@@ -40,9 +40,13 @@ run "plans_with_defaults" {
   }
   assert {
     condition = toset(output.supported_options) == toset([
-      "routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep",
+      "routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep",
     ])
-    error_message = "every option with a well-lit path in the pinned release"
+    error_message = "every option with a well-lit path in the pinned release; batch is experimental in v0.10.0, so deferred"
+  }
+  assert {
+    condition     = helm_release.keda[0].version == "2.21.0" && helm_release.keda[0].namespace == "keda"
+    error_message = "KEDA, pinned, scales models with autoscaling on"
   }
 }
 
@@ -54,7 +58,7 @@ run "disabled_plans_nothing" {
   }
 
   assert {
-    condition     = length(helm_release.lws) == 0 && length(output.supported_options) == 0
+    condition     = length(helm_release.lws) + length(helm_release.keda) == 0 && length(output.supported_options) == 0
     error_message = "spec.enabled: false installs nothing and offers no options"
   }
 }

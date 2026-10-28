@@ -1,0 +1,73 @@
+{{- if .Values.llmD }}
+{{- $v := .Values }}
+{{- range $set := .Values.llmD.sets }}
+---
+{{- if eq (int $set.nodes) 1 }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $set.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  replicas: {{ $set.replicas }}
+  selector:
+    matchLabels:
+      phoenix/set: {{ $set.name }}
+  template:
+    metadata:
+      {{- include "vllm.llmdMeta" (dict "v" $v "set" $set "worker" false) | nindent 6 }}
+    spec:
+      {{- include "vllm.llmdPod" (dict "v" $v "set" $set "worker" false) | nindent 6 }}
+{{- else }}
+# One replica = one group of nodes: the leader serves, workers join headless.
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: {{ $set.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  replicas: {{ $set.replicas }}
+  leaderWorkerTemplate:
+    size: {{ $set.nodes }}
+    restartPolicy: RecreateGroupOnPodRestart
+    leaderTemplate:
+      metadata:
+        {{- include "vllm.llmdMeta" (dict "v" $v "set" $set "worker" false) | nindent 8 }}
+      spec:
+        {{- include "vllm.llmdPod" (dict "v" $v "set" $set "worker" false) | nindent 8 }}
+    workerTemplate:
+      metadata:
+        {{- include "vllm.llmdMeta" (dict "v" $v "set" $set "worker" true) | nindent 8 }}
+      spec:
+        {{- include "vllm.llmdPod" (dict "v" $v "set" $set "worker" true) | nindent 8 }}
+{{- end }}
+{{- end }}
+{{- with .Values.llmD.autoscaling }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ .targetApiVersion }}
+    kind: {{ .targetKind }}
+    name: {{ .target }}
+  minReplicaCount: {{ .minReplicas }}
+  maxReplicaCount: {{ .maxReplicas }}
+  # A new replica takes minutes to load: wait before adding or removing another.
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp: { stabilizationWindowSeconds: 300 }
+        scaleDown: { stabilizationWindowSeconds: 300 }
+  triggers:
+    - type: prometheus
+      metricType: AverageValue
+      metadata:
+        serverAddress: {{ .serverAddress }}
+        query: {{ .query | quote }}
+        threshold: {{ .threshold | quote }}
+{{- end }}
+{{- end }}

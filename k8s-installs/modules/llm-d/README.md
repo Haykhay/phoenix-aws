@@ -7,6 +7,7 @@ endpoint picker, as before.
 | Installs | |
 |---|---|
 | LeaderWorkerSet controller, chart `0.11.1` (2026-10-01) | `lws-system`: multi-node replicas (`multi_node`, `pd_disaggregation`, `wide_ep`) |
+| KEDA, chart `2.21.0` (2026-09-23) | `keda`: scales models with `autoscaling` on, from the router's metrics in Mimir |
 
 The Gateway API and `InferencePool` CRDs come from `istio`; each model's own
 llm-d pieces come with its `vllm` unit.
@@ -22,7 +23,7 @@ option not listed.
 | `kv_offload` | `tiered-prefix-cache` |
 | `flow_control` | `flow-control` |
 | `autoscaling` | `workload-autoscaling` |
-| `batch` | `batch-serving` |
+| `batch` | not offered: `batch-serving`'s gateway is experimental in `v0.10.0` |
 | `multi_node`, `wide_ep` | `wide-ep` |
 | `pd_disaggregation` | `pd-disaggregation` |
 
@@ -33,6 +34,7 @@ never back-port.
 | `spec` | Default | |
 |---|---|---|
 | `lws_chart` | `0.11.1` | |
+| `keda_chart` | `2.21.0` | |
 | `llm_d` | `v0.10.0` | |
 
 ## Running it
