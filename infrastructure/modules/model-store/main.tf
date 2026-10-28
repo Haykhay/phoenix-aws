@@ -6,6 +6,10 @@
 locals {
   bucket_name = "${local.base_name_prefix}-model-weights-${local.account_id}"
   bucket_arn  = "arn:aws:s3:::${local.bucket_name}"
+
+  # Buckets model-weights may copy from (s3 sources, any account). Each one's
+  # bucket policy must grant the writer role too.
+  source_buckets = try(module.context.spec.source_buckets, [])
 }
 
 # CreatedBy is captured once and frozen: read every run it would record

@@ -8,25 +8,30 @@ locals {
     consumers   = {} # name => { cidrs = [...], weight = 1 }; Backstage writes approved ones
     oidc        = { issuer = null, jwks_uri = null, audiences = [], consumer_claim = "azp" }
   }
-  access    = merge(local.access_defaults, try(module.context.spec.access, {}))
-  oidc      = merge(local.access_defaults.oidc, try(module.context.spec.access.oidc, {}))
-  oidc_on   = local.oidc.issuer != null
-  tier      = module.context.tier
-  shared    = length(local.access.consumers) > 0
-  access_on = length(local.access.owner_cidrs) > 0 || local.oidc_on
+  access  = merge(local.access_defaults, try(module.context.spec.access, {}))
+  oidc    = merge(local.access_defaults.oidc, try(module.context.spec.access.oidc, {}))
+  oidc_on = local.oidc.issuer != null
+  tier    = module.context.tier
+  shared  = length(local.access.consumers) > 0
+  # Fail closed: always on. The owner is the cluster's own VPC unless
+  # Backstage names the owner environment's CIDRs.
+  access_on = true
+  own_vpc_cidrs = [for n in values(try(data.terraform_remote_state.core_network.outputs.networks, {})) :
+  n.vpc_cidr_block if try(n.vpc_id, null) == module.cluster.vpc_id && module.cluster.vpc_id != null]
+  owner_cidrs = length(local.access.owner_cidrs) > 0 ? local.access.owner_cidrs : local.own_vpc_cidrs
 
   owner = try(module.context.config.tags["owner.team"], "owner")
   # Owner first: an address in both is the owner's.
   identities = concat(
-    [for c in local.access.owner_cidrs : { name = local.owner, cidr = c }],
-    flatten([for name in sort(keys(local.access.consumers)) : [for c in local.access.consumers[name].cidrs : { name = name, cidr = c }]]),
+    [for c in local.owner_cidrs : { name = local.owner, cidr = c }],
+    flatten([for name in sort(keys(local.access.consumers)) : [for c in try(local.access.consumers[name].cidrs, []) : { name = name, cidr = c }]]),
   )
   allowed_cidrs = [for i in local.identities : i.cidr]
 
   # The gateway runs one of these per model; each acts on its own hostname only.
   # replace, never add: a client can't name itself.
   consumer_lua = local.access_on && !local.oidc_on ? join("\n", [
-    "local host = \"${local.hostname}\"",
+    "local host = \"${lower(local.hostname)}\"",
     "local nets = {",
     join(",\n", [for i in local.identities : "  { \"${i.name}\", \"${i.cidr}\" }"]),
     "}",
@@ -43,7 +48,8 @@ locals {
     end
     function envoy_on_request(handle)
       local headers = handle:headers()
-      local authority = (headers:get(":authority") or ""):gsub(":%d+$", "")
+      -- Hosts are case-insensitive: MODEL.example.com must not skip the filter.
+      local authority = (headers:get(":authority") or ""):gsub(":%d+$", ""):lower()
       if authority ~= host then return end
       local ip = num((handle:streamInfo():downstreamRemoteAddress() or ""):match("^([%d%.]+)") or "")
       local who = "unknown"

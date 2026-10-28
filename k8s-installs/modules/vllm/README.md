@@ -117,12 +117,15 @@ access:
   Cognito, Keycloak, …).
 - **sandbox / stage**: owner only. A non-empty `consumers` fails the plan
   (`consumers_only_uat_prod`).
-- **uat / prod**: with any consumer, `llm_d.flow_control` is forced on, so one
-  team can't starve the others; consumers start equal (round-robin per
+- **uat / prod**: with any consumer, `llm_d.flow_control` is forced on (NVIDIA
+  only; a shared Neuron model stays on the default path), so one team can't
+  starve the others; consumers start equal (round-robin per
   consumer). `weight` is recorded for the owner's priority lever, which
   llm-d `v0.10.0`'s fairness policy does not take yet.
-- With `owner_cidrs` empty and no OIDC nothing is rendered: anyone who can
-  reach the internal gateway can call the model, as before this option.
+- **Fails closed.** With `owner_cidrs` empty the owner is the cluster's own VPC
+  CIDR (from core-network's state); the plan fails if it can't find it. A
+  consumer without CIDRs fails the plan. A model is never open to the whole
+  segment.
 
 **Segment note.** sandbox, stage and uat share the non-production transit
 gateway segment (prod is isolated), so a sandbox or stage VPC can route to a
@@ -153,6 +156,7 @@ the model's weights or the cache claim.
 
 - `core-platform` for the environment and region: the cluster this unit targets (the plan fails without it)
 - `model-store` in `<group>-shared/<region>` and `model-cache.<cluster>`: the weights bucket and the cluster's FSx cache
+- `core-network`: the cluster's VPC CIDR is the owner's identity by default (the plan fails without it)
 - `dns` (the model's hostname, through external-dns)
 
 **Cluster components**, applied first on the same cluster (Backstage orders them from the catalog's `dependsOn`):

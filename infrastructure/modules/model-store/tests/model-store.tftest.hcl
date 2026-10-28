@@ -48,3 +48,30 @@ run "long_live_required" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "source_buckets_readable" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/model-store.sources.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      contains(jsondecode(aws_iam_role_policy.writer_s3.policy).Statement[2].Resource, "arn:aws:s3:::acme-research-models"),
+      contains(jsondecode(aws_iam_role_policy.writer_s3.policy).Statement[2].Resource, "arn:aws:s3:::acme-research-models/*"),
+      jsondecode(aws_iam_role_policy.writer_s3.policy).Statement[2].Action == ["s3:ListBucket", "s3:GetObject"],
+      jsondecode(aws_iam_role_policy.writer_s3.policy).Statement[3].Condition.StringLike["kms:ViaService"] == "s3.*.amazonaws.com",
+    ])
+    error_message = "s3 sources (any account) are readable by the copy role, KMS-encrypted ones through S3; their bucket policy must also grant it"
+  }
+}
+
+run "no_source_buckets_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(jsondecode(aws_iam_role_policy.writer_s3.policy).Statement) == 2
+    error_message = "the copy role reads no other bucket unless one is named"
+  }
+}

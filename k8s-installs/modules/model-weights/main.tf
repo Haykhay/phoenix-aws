@@ -45,8 +45,9 @@ resource "terraform_data" "validation" {
     }
     # version_label
     precondition {
-      condition     = !local.config.enabled || can(regex("^[A-Za-z0-9._-]{1,64}$", local.version))
-      error_message = "spec.version is required: letters, digits, '.', '_' or '-', at most 64 characters."
+      # . and .. would leave /models/<model>/ and <model>/ in the bucket.
+      condition     = !local.config.enabled || (can(regex("^[A-Za-z0-9._-]{1,64}$", local.version)) && !contains([".", ".."], local.version))
+      error_message = "spec.version is required: letters, digits, '.', '_' or '-', at most 64 characters, and not . or .."
     }
     precondition {
       condition     = !local.config.enabled || length(local.release) <= 53

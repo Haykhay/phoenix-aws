@@ -9,13 +9,15 @@ A Job on CPU nodes fetches the source into a scratch EBS volume, syncs it to
 `s3://<bucket>/<model>/<version>/` and writes `_COMPLETE` last (source type,
 uri and version inside). If `_COMPLETE` is already there the Job exits at
 once, so re-applying, or a second cluster asking for the same version, copies
-nothing. The apply waits for the Job (up to 6 hours): the unit's state exists
-only after a successful copy.
+nothing. The apply waits for the Job (up to 6 hours). The outputs vllm reads
+(`version`, `cache_path`, `s3_prefix`, `size_gib`) are published only once the
+release is deployed: a failed or disabled copy leaves them null, so vllm's
+plan fails instead of starting pods on a missing path.
 
 | Source `type` | `uri` | `version` | How |
 |---|---|---|---|
 | `huggingface` | `<org>/<repo>` | the 40-character commit SHA (a branch moves, so it is refused) | `hf download --revision` |
-| `s3` | `s3://<bucket>/<prefix>/` | a label you choose | `aws s3 sync`, as the copy role: **the source bucket's policy must grant model-store's writer role** `s3:ListBucket` and `s3:GetObject` (and KMS decrypt if it is encrypted with a customer key) |
+| `s3` | `s3://<bucket>/<prefix>/` | a label you choose | `aws s3 sync`, as the copy role: list the bucket in model-store's `source_buckets` **and** have its bucket policy grant model-store's writer role `s3:ListBucket` and `s3:GetObject` (and its KMS key policy, if encrypted with a customer key) |
 | `https` | `https://…` (plain http is refused) | a label you choose | download, check `sha256`, unpack if it is a tar |
 
 ```yaml

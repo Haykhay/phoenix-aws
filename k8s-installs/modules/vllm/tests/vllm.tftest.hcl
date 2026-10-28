@@ -106,6 +106,12 @@ override_data {
   values = { outputs = {} }
 }
 
+# The cluster's VPC: the owner's network identity by default.
+override_data {
+  target = data.terraform_remote_state.core_network
+  values = { outputs = { networks = { "vpc-1" = { vpc_id = "vpc-123", vpc_cidr_block = "10.64.0.0/18" } } } }
+}
+
 run "plans_with_defaults" {
   command = plan
 
@@ -522,8 +528,16 @@ run "default_render_unchanged" {
         gateway  = { name = "istio-internal", namespace = "istio-system" }
         pool     = "vllm-llama-3-8b-pool"
       }
+      # Fail closed: the owner's own VPC even when Backstage writes no CIDRs.
+      access = {
+        hostname     = "llama-3-8b-1.internal.sandbox.research.example.com"
+        gateway      = { name = "istio-internal", namespace = "istio-system" }
+        allowedCidrs = ["10.64.0.0/18"]
+        consumerLua  = local.consumer_lua
+        oidc         = null
+      }
     })
-    error_message = "with no llm-d options the server renders exactly as the default path"
+    error_message = "with no llm-d options the server renders the default path, reachable from the owner's VPC only"
   }
   assert {
     condition     = length(helm_release.pool) == 1 && length(helm_release.router) == 0 && output.llm_d_options == []
@@ -570,8 +584,8 @@ run "option_kv_offload" {
   }
 
   assert {
-    condition     = jsondecode(yamldecode(helm_release.server[0].values[0]).llmD.kvTransferConfig).kv_connector == "OffloadingConnector"
-    error_message = "kv_offload sets vLLM's OffloadingConnector"
+    condition     = jsondecode(yamldecode(helm_release.server[0].values[0]).llmD.kvTransferConfig).kv_connector == "OffloadingConnector" && yamldecode(helm_release.server[0].values[0]).llmD.memoryRequest == "132Gi"
+    error_message = "kv_offload sets vLLM's OffloadingConnector and requests its CPU memory (100 GiB + 32 GiB for vLLM), so Karpenter picks a node that has it"
   }
 }
 
@@ -777,6 +791,7 @@ run "consumer_header_overwritten" {
       strcontains(local.consumer_lua, "headers:replace(\"x-phoenix-consumer\", who)"),
       strcontains(local.consumer_lua, "headers:replace(\"x-gateway-inference-fairness-id\", who)"),
       !strcontains(local.consumer_lua, ":add("),
+      strcontains(local.consumer_lua, ":gsub(\":%d+$\", \"\"):lower()"),
       strcontains(local.consumer_lua, "{ \"research\", \"10.20.0.0/16\" }"),
       strcontains(local.consumer_lua, "{ \"quant-research\", \"10.31.0.0/16\" }"),
       yamldecode(helm_release.server[0].values[0]).access.consumerLua == local.consumer_lua,
@@ -829,5 +844,69 @@ run "oidc_option" {
       yamldecode(helm_release.server[0].values[0]).access.consumerLua == "",
     ])
     error_message = "with an issuer, RequestAuthentication validates tokens (JWKS) and the consumer comes from the token's azp claim"
+  }
+}
+
+run "uncopied_weights_rejected" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.weights
+    values = { outputs = { model = "llama-3-1-8b", version = null, cache_path = null, size_gib = null } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "owner_defaults_to_cluster_vpc" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.server[0].values[0]).access.allowedCidrs == ["10.64.0.0/18"] && strcontains(local.consumer_lua, "{ \"research\", \"10.64.0.0/18\" }")
+    error_message = "with no owner_cidrs the owner is the cluster's own VPC: a model is never open to the whole segment"
+  }
+}
+
+run "unknown_vpc_rejected" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.core_network
+    values = { outputs = {} }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "consumer_without_cidrs_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.consumer-no-cidrs.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["flow_control"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "shared_neuron_model_plans" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared-neuron.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-trn2", node_selector = { "phoenix/gpu" = "trn2" }, accelerator = "neuron" } }
+  }
+
+  assert {
+    condition     = !local.llm_d.flow_control && alltrue(values(local.option_checks)) && length(helm_release.pool) == 1
+    error_message = "a shared Neuron model stays on the default path (no llm-d on Neuron); consumers are still limited by network identity"
   }
 }

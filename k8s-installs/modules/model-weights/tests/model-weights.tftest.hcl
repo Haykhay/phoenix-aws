@@ -37,6 +37,13 @@ override_data {
   }
 }
 
+# A successful copy, unless a run says otherwise.
+override_resource {
+  target          = helm_release.this
+  values          = { status = "deployed" }
+  override_during = plan
+}
+
 run "plans_with_defaults" {
   command = plan
 
@@ -188,4 +195,40 @@ run "disabled_plans_nothing" {
     condition     = length(helm_release.this) + length(aws_eks_pod_identity_association.this) == 0
     error_message = "spec.enabled: false installs nothing"
   }
+}
+
+run "failed_copy_publishes_nothing" {
+  command = plan
+
+  override_resource {
+    target          = helm_release.this
+    values          = { status = "failed" }
+    override_during = plan
+  }
+
+  assert {
+    condition     = output.version == null && output.cache_path == null && output.s3_prefix == null
+    error_message = "a copy that did not complete publishes no version: vllm's plan then fails instead of starting pods on a missing path"
+  }
+}
+
+run "disabled_publishes_nothing" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/model-weights.off.yaml"
+  }
+
+  assert {
+    condition     = output.version == null && output.cache_path == null
+    error_message = "spec.enabled: false publishes no version"
+  }
+}
+
+run "bad_source_rejected_dot_version" {
+  command = plan
+  variables {
+    config_file = "tests/fixtures/model-weights.dotdot.yaml"
+  }
+  expect_failures = [terraform_data.validation]
 }

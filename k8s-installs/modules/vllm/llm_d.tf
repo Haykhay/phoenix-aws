@@ -97,7 +97,7 @@ locals {
   )
   # ponytail: extra_args are joined into a shell line; an arg containing spaces breaks it.
   common_args = concat(
-    ["--model=${try(local.weights.cache_path, "")}", "--served-model-name=${local.served_name}"],
+    ["--model=${local.cache_path}", "--served-model-name=${local.served_name}"],
     local.config.max_model_len == null ? [] : ["--max-model-len=${local.config.max_model_len}"],
     local.parallel_args,
     local.kv_transfer == "" ? [] : ["--kv-transfer-config=\"$KV_TRANSFER_CONFIG\""],
@@ -116,7 +116,9 @@ locals {
     sets             = local.sets
     kvTransferConfig = local.kv_transfer
     efa              = { enabled = local.efa_on, interfaces = local.config.efa_interfaces }
-    sidecarImage     = "ghcr.io/llm-d/llm-d-router-disagg-sidecar:${local.config.disagg_sidecar_tag}"
+    # Host memory for offloaded KV plus vLLM's own; Karpenter sizes the node from it.
+    memoryRequest = local.llm_d.kv_offload ? "${local.config.kv_offload_cpu_gib + 32}Gi" : ""
+    sidecarImage  = "ghcr.io/llm-d/llm-d-router-disagg-sidecar:${local.config.disagg_sidecar_tag}"
     # KEDA on the router's running-request count, read from Mimir. Never to zero.
     autoscaling = local.llm_d.autoscaling ? {
       target           = local.scaled.name

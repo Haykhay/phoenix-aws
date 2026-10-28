@@ -26,10 +26,25 @@ resource "aws_iam_role_policy" "writer_s3" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       { Sid = "List", Effect = "Allow", Action = ["s3:ListBucket"], Resource = [local.bucket_arn] },
       { Sid = "ReadWrite", Effect = "Allow", Action = ["s3:PutObject", "s3:GetObject"], Resource = ["${local.bucket_arn}/*"] },
-    ]
+      ], [for st in [
+        {
+          Sid      = "ReadSources"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket", "s3:GetObject"]
+          Resource = flatten([for b in local.source_buckets : ["arn:aws:s3:::${b}", "arn:aws:s3:::${b}/*"]])
+        },
+        # A source encrypted with its owner's KMS key: decrypt only through S3.
+        {
+          Sid       = "DecryptSources"
+          Effect    = "Allow"
+          Action    = ["kms:Decrypt"]
+          Resource  = "*"
+          Condition = { StringLike = { "kms:ViaService" = "s3.*.amazonaws.com" } }
+        },
+    ] : st if length(local.source_buckets) > 0])
   })
 }
 

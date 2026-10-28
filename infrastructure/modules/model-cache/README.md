@@ -20,7 +20,7 @@ cluster `"1"`).
 |---|---|
 | FSx for Lustre (`PERSISTENT_2`, Lustre 2.15, LZ4) | in the cluster's first node subnet |
 | Data repository association | `s3://<weights bucket>/` at `/weights`, importing new, changed and deleted objects |
-| Security group | Lustre ports 988 and 1018–1023 from the cluster's node security group and from itself |
+| Security group | Lustre ports 988 and 1018–1023 from the cluster's VPC CIDR (not the node security group, which a long-lived cache outlives) and from itself |
 
 Weights appear at `/weights/<model>/<version>/` inside the file system.
 

@@ -257,3 +257,26 @@ run "unknown_accelerator_rejected" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "gpu_limit_fits_big_nodes" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.trn2.yaml"
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.this[0].values[0]).gpuLimit == 32
+    error_message = "the default limit is max(8, 2 nodes' worth): a 16-device trn2 node (or a 2-node replica) can launch"
+  }
+}
+
+run "gpu_limit_below_one_node_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.tight.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}

@@ -45,4 +45,6 @@ locals {
     hf     = "python:3.13.16-slim-bookworm" # 2026-09-30
   }
   hf_package = "huggingface_hub==2.1.1" # 2026-10-01
+
+  copied = local.config.enabled && try(helm_release.this[0].status, "") == "deployed"
 }

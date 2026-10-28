@@ -18,6 +18,10 @@ resource "terraform_data" "validation" {
       error_message = "core-platform has no Karpenter for cluster \"${local.cluster_key}\"."
     }
     precondition {
+      condition     = !local.config.enabled || local.gpu_limit >= local.config.gpu_count_max
+      error_message = "spec.gpu_limit (${local.gpu_limit}) is below one node's ${local.config.gpu_count_max} devices: the pool could never launch its largest node."
+    }
+    precondition {
       condition     = !local.config.enabled || contains(keys(local.accelerators), local.config.accelerator)
       error_message = "spec.accelerator must be nvidia or neuron."
     }
@@ -43,7 +47,7 @@ resource "helm_release" "this" {
     gpuType          = local.gpu_type
     instanceFamilies = local.config.instance_families
     gpuCountMax      = local.config.gpu_count_max
-    gpuLimit         = local.config.gpu_limit
+    gpuLimit         = local.gpu_limit
     capacityTypes    = local.capacity_types
     efa              = local.config.efa
     accelerator      = local.accelerator

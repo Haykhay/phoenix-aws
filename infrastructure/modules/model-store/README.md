@@ -26,7 +26,8 @@ Layout: `<model>/<version>/…`, with `<model>/<version>/_COMPLETE` written last
 by the copy job. A version is written once and never changed; a new version is
 a new prefix.
 
-The writer role can list, read and write, **never delete**. The KMS key policy
+The writer role can list, read and write its own bucket, read the named
+`source_buckets`, and **never delete**. The KMS key policy
 also lets FSx's S3 service-linked role (`AWSServiceRoleForFSxS3Access_<fs id>`,
 one per file system) decrypt, which is how `model-cache` lazy-loads. FSx
 reaches S3 through that role, not one we attach.
@@ -41,7 +42,9 @@ tags:
   LongLive: true           # required — the plan fails without it
 ```
 
-No `spec`.
+| `spec` | Default | |
+|---|---|---|
+| `source_buckets` | `[]` | buckets `model-weights` may copy from (s3 sources, any account): the writer role gets list/read on them and KMS decrypt through S3. Each bucket's own policy must grant the writer role too. |
 
 ## Running it
 

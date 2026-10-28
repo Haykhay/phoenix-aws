@@ -93,14 +93,16 @@ resource "aws_security_group" "this" {
   depends_on = [terraform_data.validation]
 }
 
+# By the VPC's CIDR, not the node security group: a long-lived cache outlives
+# core-platform, and a rule naming its security group would block deleting it.
 resource "aws_vpc_security_group_ingress_rule" "lustre_from_nodes" {
   for_each = local.lustre_ports
 
-  security_group_id            = aws_security_group.this.id
-  referenced_security_group_id = try(local.cluster.node_security_group_id, null)
-  ip_protocol                  = "tcp"
-  from_port                    = each.value[0]
-  to_port                      = each.value[1]
+  security_group_id = aws_security_group.this.id
+  cidr_ipv4         = try(local.network.vpc_cidr_block, null)
+  ip_protocol       = "tcp"
+  from_port         = each.value[0]
+  to_port           = each.value[1]
 }
 
 # Lustre servers talk to each other on the same ports.

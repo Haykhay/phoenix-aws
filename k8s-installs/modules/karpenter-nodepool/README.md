@@ -9,7 +9,7 @@ with the platform's values from the `phoenix-gpu` catalog entity.
 |---|---|---|
 | `instance_families` | **required** | e.g. `[g6]` for l4, `[g5]` for a10g, `[g6e]` for l40s |
 | `gpu_count_max` | `1` | largest instance by GPU count |
-| `gpu_limit` | `8` | total GPUs the pool may hold |
+| `gpu_limit` | `max(8, 2 × gpu_count_max)` | total GPUs (Neuron devices) the pool may hold: two full nodes by default; the plan fails below one node |
 | `capacity_types` | `[on-demand]` | after any reservations; `[]` with reservations = reserved only |
 | `capacity_reservations` | `[]` | ODCRs or Capacity Blocks you hold: `[{ id: cr-… }]` or `[{ tags: { … } }]`; used first |
 | `accelerator` | `nvidia` | or `neuron`: Trainium/Inferentia families (`trn1`, `trn2`, `inf2`); `gpu_count_max` and `gpu_limit` then count Neuron devices |

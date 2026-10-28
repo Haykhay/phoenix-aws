@@ -44,6 +44,18 @@ data "terraform_remote_state" "fsx" {
   defaults = {}
 }
 
+# The environment's VPCs: the cluster's own VPC CIDR is the owner's identity
+# when spec.access.owner_cidrs is empty.
+data "terraform_remote_state" "core_network" {
+  backend = "s3"
+  config = {
+    bucket = module.context.state.bucket
+    region = module.context.state.region
+    key    = "${local.environment}/${local.region}/core-network/terraform.tfstate"
+  }
+  defaults = {}
+}
+
 # The cluster's llm-d prerequisites: needed only when an llm-d option is on.
 data "terraform_remote_state" "llm_d" {
   backend = "s3"
@@ -78,6 +90,14 @@ resource "terraform_data" "validation" {
       error_message = "spec.access.consumers is for uat and prod only (consumers_only_uat_prod); ${local.tier} models serve their owner."
     }
     precondition {
+      condition     = !local.config.enabled || length(local.owner_cidrs) > 0
+      error_message = "no owner network for cluster ${local.cluster_key}: core-network has no VPC ${coalesce(module.cluster.vpc_id, "(unknown)")} and spec.access.owner_cidrs is empty. Access fails closed: a model is never open to the whole segment."
+    }
+    precondition {
+      condition     = !local.config.enabled || alltrue([for name, c in local.access.consumers : length(try(c.cidrs, [])) > 0])
+      error_message = "every consumer needs its environment's CIDRs; without them it could not call the model (consumers without CIDRs: ${join(", ", [for name, c in local.access.consumers : name if length(try(c.cidrs, [])) == 0])})."
+    }
+    precondition {
       condition     = !local.config.enabled || !local.oidc_on || local.oidc.jwks_uri != null
       error_message = "spec.access.oidc needs jwks_uri with issuer."
     }
@@ -86,12 +106,13 @@ resource "terraform_data" "validation" {
       error_message = "spec.llm_d is invalid; failing checks: ${join(", ", [for k, ok in local.option_checks : k if !ok])}. llm-d options need hardware nvidia and the cluster's llm-d unit; wide_ep needs multi_node; multi_node needs nodes_per_replica >= 2 (and the reverse); multi_node, pd_disaggregation and wide_ep need an EFA pool; options must be in llm-d ${try(local.llm_d_state.version, "(not installed)")}'s supported_options (${join(", ", try(local.llm_d_state.supported_options, []))})."
     }
     precondition {
-      condition     = !local.config.enabled || can(local.weights.cache_path)
-      error_message = "no weights for ${local.slug} on cluster ${local.cluster_key}: apply model-weights.${local.slug} first."
+      # Null until the copy job has succeeded (model-weights publishes it then).
+      condition     = !local.config.enabled || try(local.weights.cache_path, null) != null
+      error_message = "no copied weights for ${local.slug} on cluster ${local.cluster_key}: apply model-weights.${local.slug} first (or fix its failed copy job)."
     }
     precondition {
-      condition     = !local.config.enabled || !can(local.weights.version) || try(local.weights.version == local.config.version, false)
-      error_message = "spec.version is ${coalesce(local.config.version, "unset")} but model-weights.${local.slug} copied ${try(local.weights.version, "nothing")}: apply that version's weights first, or pin the version it has."
+      condition     = !local.config.enabled || try(local.weights.version, null) == null || try(local.weights.version == local.config.version, false)
+      error_message = "spec.version is ${coalesce(local.config.version, "unset")} but model-weights.${local.slug} copied ${coalesce(try(local.weights.version, null), "nothing")}: apply that version's weights first, or pin the version it has."
     }
     precondition {
       condition     = !local.config.enabled || can(local.fsx.pvc_name)
@@ -144,7 +165,7 @@ resource "helm_release" "server" {
 
   values = [yamlencode(merge({
     name           = local.server
-    modelPath      = try(local.weights.cache_path, "")
+    modelPath      = local.cache_path
     servedName     = local.served_name
     startupSeconds = local.startup_seconds
     cache = {

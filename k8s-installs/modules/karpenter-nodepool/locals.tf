@@ -5,7 +5,7 @@ locals {
     # entity for this GPU type (the file's instance name, e.g. l4).
     instance_families = []
     gpu_count_max     = 1
-    gpu_limit         = 8
+    gpu_limit         = null # default: max(8, two nodes of gpu_count_max)
     capacity_types    = ["on-demand"]
     # ODCRs or Capacity Blocks the engineer already holds: [{ id = "cr-…" }] or
     # [{ tags = { … } }]. Phoenix never buys any.
@@ -22,6 +22,9 @@ locals {
   karpenter = module.cluster.karpenter
   gpu_type  = coalesce(local.instance, "missing")
   pool_name = "gpu-${local.gpu_type}"
+  # Total devices the pool may hold. Two full nodes by default, so a big node
+  # (trn2: 16) or a two-node replica can launch; raise it for more.
+  gpu_limit = coalesce(local.config.gpu_limit, max(8, 2 * local.config.gpu_count_max))
 
   # Reserved first; on-demand (or spot) after it only if capacity_types lists it.
   capacity_types = length(local.config.capacity_reservations) > 0 ? concat(

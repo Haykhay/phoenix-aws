@@ -1,5 +1,6 @@
 {{- with .Values.access }}
 {{- $gw := dict "gateway.networking.k8s.io/gateway-name" .gateway.name }}
+{{- if .allowedCidrs }}
 # Network identity: a DENY for this hostname from anywhere else. An ALLOW
 # policy would also shut every other host on the shared gateway. ipBlocks is
 # the caller's own address: the internal NLB preserves it.
@@ -21,10 +22,12 @@ spec:
         - source:
             notIpBlocks: {{ toJson .allowedCidrs }}
       {{- end }}
+{{- end }}
 {{- if .consumerLua }}
 ---
 # x-phoenix-consumer (and flow control's fairness id) from the matched CIDR,
-# replacing anything the client sent.
+# replacing anything the client sent. First in the chain, so every later
+# filter (the InferencePool's ext_proc included) sees the stamped value.
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
@@ -44,7 +47,7 @@ spec:
               subFilter:
                 name: envoy.filters.http.router
       patch:
-        operation: INSERT_BEFORE
+        operation: INSERT_FIRST
         value:
           name: envoy.filters.http.lua.{{ $.Values.name }}
           typed_config:

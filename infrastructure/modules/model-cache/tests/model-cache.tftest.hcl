@@ -70,8 +70,8 @@ run "plans_with_defaults" {
     condition = alltrue([
       for port in [988, 1018] :
       contains([for r in aws_vpc_security_group_ingress_rule.lustre_from_nodes : r.from_port], port)
-    ]) && alltrue([for r in aws_vpc_security_group_ingress_rule.lustre_from_nodes : r.referenced_security_group_id == "sg-nodes"])
-    error_message = "cluster nodes reach Lustre on 988 and 1018-1023"
+    ]) && alltrue([for r in aws_vpc_security_group_ingress_rule.lustre_from_nodes : r.cidr_ipv4 == "10.64.0.0/18" && r.referenced_security_group_id == null])
+    error_message = "cluster nodes reach Lustre on 988 and 1018-1023, by the VPC's CIDR: a rule naming the node security group would block deleting it when core-platform is torn down under a long-lived cache"
   }
   assert {
     condition     = output.weights_path_prefix == "/weights"

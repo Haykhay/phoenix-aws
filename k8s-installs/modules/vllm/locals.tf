@@ -42,9 +42,10 @@ locals {
   }
 
   config = merge(local.defaults, module.context.spec)
-  # Shared in uat/prod (any consumer) forces flow control: one team can't starve the rest.
+  # Shared in uat/prod (any consumer) forces flow control, so one team can't starve
+  # the rest. Not on Neuron: llm-d is NVIDIA-only there; network identity still applies.
   llm_d = merge(local.defaults.llm_d, try(module.context.spec.llm_d, {}),
-  [for f in [{ flow_control = true }] : f if local.shared && contains(["uat", "prod"], local.tier)]...)
+  [for f in [{ flow_control = true }] : f if local.shared && contains(["uat", "prod"], local.tier) && local.config.hardware == "nvidia"]...)
   llm_d_on  = [for k, on in local.llm_d : k if on]
   llm_d_any = length(local.llm_d_on) > 0
 
@@ -70,6 +71,7 @@ locals {
   hostname = "${local.slug}-${local.cluster_key}.${try(local.gateway.domain, "istio-missing")}"
 
   weights          = try(data.terraform_remote_state.weights.outputs, {})
+  cache_path       = try(local.weights.cache_path, null) == null ? "" : local.weights.cache_path
   fsx              = try(data.terraform_remote_state.fsx.outputs, {})
   pool_accelerator = try(data.terraform_remote_state.gpu_pool.outputs.accelerator, "nvidia")
   hardware = {
@@ -88,5 +90,5 @@ locals {
 
   served_name = coalesce(local.config.model, try(local.weights.model, null), local.slug)
   # Loading from FSx is minutes, not hours, but a 600B model still needs time.
-  startup_seconds = max(1800, try(local.weights.size_gib, 0) * 6)
+  startup_seconds = max(1800, coalesce(try(local.weights.size_gib, null), 0) * 6)
 }

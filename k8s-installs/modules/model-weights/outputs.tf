@@ -1,3 +1,5 @@
+# Published only once the copy job succeeded (vllm checks the version against
+# them): a failed or disabled copy leaves them null.
 output "model" {
   description = "Model name used in paths and as vllm's served model name."
   value       = local.model
@@ -5,7 +7,7 @@ output "model" {
 
 output "version" {
   description = "Pinned version copied: a Hugging Face commit SHA or the source's label."
-  value       = local.version
+  value       = local.copied ? local.version : null
 }
 
 output "source" {
@@ -15,17 +17,17 @@ output "source" {
 
 output "s3_prefix" {
   description = "Copied weights: s3://<bucket>/<model>/<version>/, complete once _COMPLETE exists."
-  value       = local.s3_prefix
+  value       = local.copied ? local.s3_prefix : null
 }
 
 output "cache_path" {
   description = "Where model servers find the weights through the FSx cache."
-  value       = "/models/${local.key}"
+  value       = local.copied ? "/models/${local.key}" : null
 }
 
 output "size_gib" {
   description = "Declared size of the weights in GiB; vllm sizes its startup budget from it."
-  value       = local.config.size_gib
+  value       = local.copied ? local.config.size_gib : null
 }
 
 output "resource_summary" {

@@ -37,6 +37,10 @@ containers:
     ports:
       - { name: http, containerPort: {{ $set.port }} }
     resources:
+      {{- with $v.llmD.memoryRequest }}
+      requests:
+        memory: {{ . }}
+      {{- end }}
       limits:
         {{ $v.accelerator.resource }}: {{ $v.gpu.perReplica }}
         {{- if $v.llmD.efa.enabled }}
