@@ -7,6 +7,9 @@ spec:
     metadata:
       labels:
         phoenix/gpu: {{ .Values.gpuType | quote }}
+        {{- if .Values.efa }}
+        phoenix/efa: "true"
+        {{- end }}
     spec:
       nodeClassRef:
         group: karpenter.k8s.aws
