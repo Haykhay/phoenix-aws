@@ -4,7 +4,7 @@ output "node_pool" {
 }
 
 output "node_selector" {
-  description = "What a GPU workload sets to land on this pool (plus a toleration for nvidia.com/gpu)."
+  description = "What a workload sets to land on this pool (plus a toleration for its accelerator's taint)."
   value       = { "phoenix/gpu" = local.gpu_type }
 }
 
@@ -18,6 +18,11 @@ output "capacity_reservations" {
   value       = local.config.capacity_reservations
 }
 
+output "accelerator" {
+  description = "nvidia or neuron: what the pool's devices are; vllm's spec.hardware must match."
+  value       = local.config.accelerator
+}
+
 output "resource_summary" {
   value = {
     environment  = local.environment
@@ -28,5 +33,6 @@ output "resource_summary" {
     families     = local.config.instance_families
     capacity     = local.capacity_types
     efa          = local.config.efa
+    accelerator  = local.config.accelerator
   }
 }

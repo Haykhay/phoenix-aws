@@ -55,6 +55,14 @@ resource "terraform_data" "validation" {
       error_message = "spec.version (the model-weights version) and spec.gpu (GPU type) are required — Backstage fills both."
     }
     precondition {
+      condition     = !local.config.enabled || contains(["nvidia", "neuron"], local.config.hardware)
+      error_message = "spec.hardware must be nvidia or neuron."
+    }
+    precondition {
+      condition     = !local.config.enabled || !can(data.terraform_remote_state.gpu_pool.outputs.node_pool) || local.config.hardware == local.pool_accelerator
+      error_message = "spec.hardware is ${local.config.hardware} but pool gpu-${coalesce(local.config.gpu, "none")} is ${local.pool_accelerator}: pick a ${local.config.hardware} GPU type."
+    }
+    precondition {
       condition     = !local.config.enabled || can(local.weights.cache_path)
       error_message = "no weights for ${local.slug} on cluster ${local.cluster_key}: apply model-weights.${local.slug} first."
     }
@@ -119,12 +127,15 @@ resource "helm_release" "server" {
       mountPath = try(local.fsx.mount_path, "")
       subPath   = try(local.fsx.sub_path, "")
     }
-    prepull     = true
-    replicas    = local.config.replicas
-    maxModelLen = local.config.max_model_len
-    extraArgs   = local.config.extra_args
-    image       = { repository = "vllm/vllm-openai", tag = local.config.image_tag }
-    gpu         = { type = local.config.gpu, perReplica = local.config.gpus_per_replica }
+    prepull        = true
+    replicas       = local.config.replicas
+    maxModelLen    = local.config.max_model_len
+    extraArgs      = local.config.extra_args
+    image          = local.hardware.image
+    command        = local.hardware.command
+    accelerator    = local.hardware.accelerator
+    tensorParallel = coalesce(local.config.tensor_parallel_size, local.config.gpus_per_replica)
+    gpu            = { type = local.config.gpu, perReplica = local.config.gpus_per_replica }
     route = {
       hostname = local.hostname
       gateway  = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }

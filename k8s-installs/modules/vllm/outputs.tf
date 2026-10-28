@@ -17,6 +17,7 @@ output "resource_summary" {
     model        = local.served_name
     version      = local.config.version
     gpu          = local.config.gpu
-    image_tag    = local.config.image_tag
+    image_tag    = local.hardware.image.tag
+    hardware     = local.config.hardware
   }
 }

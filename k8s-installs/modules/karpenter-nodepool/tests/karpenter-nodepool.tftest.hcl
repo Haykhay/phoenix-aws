@@ -215,3 +215,45 @@ run "efa_needs_capable_family" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "nvidia_by_default" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      output.accelerator == "nvidia",
+      yamldecode(helm_release.this[0].values[0]).accelerator.taint == "nvidia.com/gpu",
+      yamldecode(helm_release.this[0].values[0]).accelerator.resource == "nvidia.com/gpu",
+    ])
+    error_message = "pools are NVIDIA unless told otherwise"
+  }
+}
+
+run "neuron_pool" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.trn2.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      output.accelerator == "neuron",
+      yamldecode(helm_release.this[0].values[0]).accelerator.name == "neuron",
+      yamldecode(helm_release.this[0].values[0]).accelerator.taint == "aws.amazon.com/neuron",
+      yamldecode(helm_release.this[0].values[0]).accelerator.resource == "aws.amazon.com/neuron",
+      yamldecode(helm_release.this[0].values[0]).nodeClass.amiAlias == "al2023@latest",
+    ])
+    error_message = "a Neuron pool taints aws.amazon.com/neuron, labels phoenix/accelerator=neuron, limits Neuron devices and uses AL2023 (Karpenter picks the Neuron variant)"
+  }
+}
+
+run "unknown_accelerator_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.amd.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}

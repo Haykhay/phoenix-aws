@@ -22,17 +22,20 @@ spec:
       nodeSelector:
         phoenix/gpu: {{ .Values.gpu.type | quote }}
       tolerations:
-        - key: nvidia.com/gpu
+        - key: {{ .Values.accelerator.taint }}
           operator: Exists
           effect: NoSchedule
       containers:
         - name: vllm
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- with .Values.command }}
+          command: {{ toJson . }}
+          {{- end }}
           args:
             - --model={{ .Values.modelPath }}
             - --served-model-name={{ .Values.servedName }}
             - --port=8000
-            - --tensor-parallel-size={{ .Values.gpu.perReplica }}
+            - --tensor-parallel-size={{ .Values.tensorParallel }}
             {{- with .Values.maxModelLen }}
             - --max-model-len={{ . }}
             {{- end }}
@@ -48,7 +51,7 @@ spec:
               containerPort: 8000
           resources:
             limits:
-              nvidia.com/gpu: {{ .Values.gpu.perReplica }}
+              {{ .Values.accelerator.resource }}: {{ .Values.gpu.perReplica }}
           readinessProbe:
             httpGet:
               path: /health

@@ -1,5 +1,6 @@
 # One GPU NodePool + EC2NodeClass per GPU type (file karpenter-nodepool.<type>.yaml).
-# Nodes carry taint nvidia.com/gpu=true:NoSchedule and label phoenix/gpu=<type>;
+# Nodes carry taint nvidia.com/gpu=true:NoSchedule (aws.amazon.com/neuron for
+# Neuron pools) and labels phoenix/gpu=<type>, phoenix/accelerator=<nvidia|neuron>;
 # only workloads that ask for that GPU land there. Needs the karpenter unit
 # (controller + CRDs) applied first.
 resource "terraform_data" "validation" {
@@ -15,6 +16,10 @@ resource "terraform_data" "validation" {
     precondition {
       condition     = !local.config.enabled || local.karpenter != null
       error_message = "core-platform has no Karpenter for cluster \"${local.cluster_key}\"."
+    }
+    precondition {
+      condition     = !local.config.enabled || contains(keys(local.accelerators), local.config.accelerator)
+      error_message = "spec.accelerator must be nvidia or neuron."
     }
     precondition {
       condition     = !local.config.enabled || length(local.capacity_types) > 0
@@ -41,6 +46,7 @@ resource "helm_release" "this" {
     gpuLimit         = local.config.gpu_limit
     capacityTypes    = local.capacity_types
     efa              = local.config.efa
+    accelerator      = local.accelerator
     expireAfter      = local.config.expire_after
     consolidateAfter = local.config.consolidate_after
     nodeClass = {
@@ -91,7 +97,7 @@ resource "helm_release" "efa_device_plugin" {
 
   values = [yamlencode({
     nodeSelector = { "phoenix/gpu" = local.gpu_type }
-    tolerations  = [{ key = "nvidia.com/gpu", operator = "Exists", effect = "NoSchedule" }]
+    tolerations  = [{ key = local.accelerator.taint, operator = "Exists", effect = "NoSchedule" }]
   })]
 
   depends_on = [helm_release.this]

@@ -19,7 +19,7 @@ spec:
       nodeSelector:
         phoenix/gpu: {{ .Values.gpu.type | quote }}
       tolerations:
-        - key: nvidia.com/gpu
+        - key: {{ .Values.accelerator.taint }}
           operator: Exists
           effect: NoSchedule
       initContainers:

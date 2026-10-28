@@ -293,3 +293,53 @@ run "prepull_on_model_pool" {
     error_message = "a prepull DaemonSet pulls the serving image onto the model's pool (phoenix/gpu=l4) before the model starts"
   }
 }
+
+run "neuron_model" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.llama-neuron.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = {
+      outputs = {
+        node_pool     = "gpu-trn2"
+        node_selector = { "phoenix/gpu" = "trn2" }
+        accelerator   = "neuron"
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      yamldecode(helm_release.server[0].values[0]).image.repository == "public.ecr.aws/neuron/pytorch-inference-vllm-neuronx",
+      yamldecode(helm_release.server[0].values[0]).image.tag == "0.24.0.1.1.0-neuronx-py313-sdk2.32.0-ubuntu24.04",
+      yamldecode(helm_release.server[0].values[0]).accelerator.resource == "aws.amazon.com/neuron",
+      yamldecode(helm_release.server[0].values[0]).accelerator.taint == "aws.amazon.com/neuron",
+      yamldecode(helm_release.server[0].values[0]).gpu.perReplica == 4,
+      yamldecode(helm_release.server[0].values[0]).tensorParallel == 16,
+    ])
+    error_message = "a Neuron model runs the pinned Neuron vLLM image, requests gpus_per_replica Neuron devices and tolerates their taint"
+  }
+}
+
+run "hardware_pool_mismatch_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.llama-neuron.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "nvidia_by_default" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.server[0].values[0]).accelerator.resource == "nvidia.com/gpu" && yamldecode(helm_release.server[0].values[0]).tensorParallel == 1
+    error_message = "models run on NVIDIA by default, tensor parallel across their GPUs"
+  }
+}

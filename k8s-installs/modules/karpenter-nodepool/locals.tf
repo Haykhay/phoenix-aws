@@ -11,7 +11,8 @@ locals {
     # [{ tags = { … } }]. Phoenix never buys any.
     capacity_reservations = []
     efa                   = false           # multi-node serving; EFA-capable families only
-    ami_alias             = "al2023@latest" # Karpenter picks the NVIDIA variant for GPU instances
+    accelerator           = "nvidia"        # or neuron (Trainium/Inferentia)
+    ami_alias             = "al2023@latest" # Karpenter picks the NVIDIA or Neuron variant
     volume_size           = "200Gi"         # model images and weights are large
     expire_after          = "168h"
     consolidate_after     = "5m"
@@ -30,4 +31,12 @@ locals {
   # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html, GPU families.
   efa_families = ["p4d", "p4de", "p5", "p5e", "p5en", "p6-b200", "p6e-gb200"]
   efa_plugin   = "v0.5.33" # aws-efa-k8s-device-plugin chart, 2026-09-15
+
+  # Taint, device resource and count label per accelerator. The al2023 alias
+  # resolves to the NVIDIA or Neuron AMI variant from the instance type.
+  accelerators = {
+    nvidia = { name = "nvidia", taint = "nvidia.com/gpu", resource = "nvidia.com/gpu", countLabel = "karpenter.k8s.aws/instance-gpu-count" }
+    neuron = { name = "neuron", taint = "aws.amazon.com/neuron", resource = "aws.amazon.com/neuron", countLabel = "karpenter.k8s.aws/instance-accelerator-count" }
+  }
+  accelerator = lookup(local.accelerators, local.config.accelerator, local.accelerators.nvidia)
 }

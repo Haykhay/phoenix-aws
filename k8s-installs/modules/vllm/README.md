@@ -14,6 +14,9 @@ catalog entity.
 | `gpus_per_replica` | `1` | tensor parallelism |
 | `max_model_len`, `extra_args` | none | passed to vLLM |
 | `image_tag` | `v0.31.0` | `vllm/vllm-openai`, pinned |
+| `hardware` | `nvidia` | or `neuron` (Trainium/Inferentia): must match the pool's `accelerator`, or the plan fails |
+| `tensor_parallel_size` | `gpus_per_replica` | on Neuron, NeuronCores (devices × cores per device) |
+| `neuron_image_tag` | `0.24.0.1.1.0-neuronx-py313-sdk2.32.0-ubuntu24.04` | `public.ecr.aws/neuron/pytorch-inference-vllm-neuronx`, 2026-08-18 |
 
 What it creates, in `models`:
 
@@ -31,6 +34,12 @@ What it creates, in `models`:
   vLLM's own load metrics.
 - **HTTPRoute** on istio's internal gateway: `https://<slug>-<cluster>.<internal zone>/v1`
   (output `endpoint`), with an external-dns record.
+**Neuron** (`hardware: neuron`, default path only, no llm-d options): the
+Neuron build of vLLM, started as `python -m vllm.entrypoints.openai.api_server`
+with the same `--model=/models/<model>/<version>` (its entrypoint runs the
+command it is given), requesting `aws.amazon.com/neuron` × `gpus_per_replica`
+and tolerating `aws.amazon.com/neuron`. Needs the `neuron-device-plugin` unit.
+
 The plan fails clearly without the cluster's istio unit, the GPU pool unit,
 the model's weights or the cache claim.
 
@@ -58,7 +67,7 @@ the model's weights or the cache claim.
 - `karpenter-nodepool` (the plan fails without it)
 - `aws-fsx-csi-driver` (the plan fails without it): state `<env_id>/<region>/k8s/<cluster>/aws-fsx-csi-driver/terraform.tfstate`
 - `model-weights.<slug>`, same slug as this unit, at `spec.version` (the plan fails without it or on another version): state `<env_id>/<region>/k8s/<cluster>/model-weights.<slug>/terraform.tfstate`
-- `nvidia-gpu-operator`
+- `nvidia-gpu-operator` (NVIDIA) or `neuron-device-plugin` (Neuron)
 - `external-dns`
 
 **You provide:**
@@ -92,7 +101,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`).
 
 ### Outputs
 
