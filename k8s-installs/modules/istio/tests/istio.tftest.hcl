@@ -142,3 +142,12 @@ run "internal_nlb_preserves_client_ip" {
     error_message = "the internal gateway sees callers' own addresses (IP targets don't preserve them by default): model access is by caller CIDR"
   }
 }
+
+run "gateway_metrics_carry_consumer" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.extras[0].values[0]).telemetry.consumerTags == true
+    error_message = "the gateways' request metrics carry consumer (x-phoenix-consumer) and request_host, for the Model serving dashboard"
+  }
+}

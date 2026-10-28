@@ -124,7 +124,7 @@ locals {
       targetApiVersion = local.nodes > 1 ? "leaderworkerset.x-k8s.io/v1" : "apps/v1"
       minReplicas      = max(1, local.config.min_replicas)
       maxReplicas      = max(1, local.config.min_replicas, local.config.max_replicas)
-      serverAddress    = "http://mimir-query-frontend.monitoring.svc:8080/prometheus"
+      serverAddress    = "http://mimir-gateway.monitoring.svc/prometheus"
       query            = "sum(llm_d_epp_request_running{model_name=\"${local.served_name}\"})"
       threshold        = tostring(local.config.autoscale_target)
     } : null

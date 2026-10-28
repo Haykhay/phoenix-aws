@@ -69,6 +69,7 @@ resource "helm_release" "extras" {
       internal = { enabled = local.internal_gateway.enabled, serviceAnnotations = local.internal_gateway.service_annotations }
       external = { enabled = local.external_gateway.enabled, serviceAnnotations = local.external_gateway.service_annotations }
     }
+    telemetry = { consumerTags = true }
   })]
 
   depends_on = [helm_release.istiod]
