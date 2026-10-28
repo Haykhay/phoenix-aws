@@ -721,3 +721,113 @@ run "wide_ep_600b_fixture" {
     error_message = "the day-one ~600B MoE: wide EP over two-node prefill and decode groups, P/D and routing, EFA image, on a reserved EFA pool"
   }
 }
+
+# --- Task 10: access ----------------------------------------------------------
+
+run "uat_allows_only_owner_and_consumers" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.owner-only.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      yamldecode(helm_release.server[0].values[0]).access.allowedCidrs == ["10.20.0.0/16"],
+      yamldecode(helm_release.server[0].values[0]).access.gateway.name == "istio-internal",
+      yamldecode(helm_release.server[0].values[0]).access.gateway.namespace == "istio-system",
+      yamldecode(helm_release.server[0].values[0]).access.hostname == "owner-only-1.internal.sandbox.research.example.com",
+    ])
+    error_message = "on the internal gateway, this model's hostname is reachable from the owner's CIDRs only"
+  }
+}
+
+run "shared_allows_consumers" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.server[0].values[0]).access.allowedCidrs == ["10.20.0.0/16", "10.30.0.0/16", "10.31.0.0/16"]
+    error_message = "approved consumers' CIDRs are allowed beside the owner's"
+  }
+}
+
+run "consumer_header_overwritten" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      strcontains(local.consumer_lua, "headers:replace(\"x-phoenix-consumer\", who)"),
+      strcontains(local.consumer_lua, "headers:replace(\"x-gateway-inference-fairness-id\", who)"),
+      !strcontains(local.consumer_lua, ":add("),
+      strcontains(local.consumer_lua, "{ \"research\", \"10.20.0.0/16\" }"),
+      strcontains(local.consumer_lua, "{ \"quant-research\", \"10.31.0.0/16\" }"),
+      yamldecode(helm_release.server[0].values[0]).access.consumerLua == local.consumer_lua,
+    ])
+    error_message = "the gateway sets x-phoenix-consumer (and flow control's fairness id) from the caller's CIDR, replacing whatever the client sent"
+  }
+}
+
+run "consumers_only_uat_prod" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.sandbox-shared.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "shared_forces_flow_control" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = local.llm_d.flow_control && contains(output.llm_d_options, "flow_control") && length(helm_release.router) == 1
+    error_message = "a model shared with other teams in uat/prod always has flow control"
+  }
+}
+
+run "oidc_option" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.oidc.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      yamldecode(helm_release.server[0].values[0]).access.oidc.issuer == "https://idp.example.com",
+      yamldecode(helm_release.server[0].values[0]).access.oidc.jwksUri == "https://idp.example.com/jwks",
+      yamldecode(helm_release.server[0].values[0]).access.oidc.audiences == ["phoenix-models"],
+      yamldecode(helm_release.server[0].values[0]).access.oidc.consumerClaim == "azp",
+      yamldecode(helm_release.server[0].values[0]).access.consumerLua == "",
+    ])
+    error_message = "with an issuer, RequestAuthentication validates tokens (JWKS) and the consumer comes from the token's azp claim"
+  }
+}

@@ -83,6 +83,51 @@ wide_ep + pd_disaggregation + routing, 8 GPUs × 2 nodes per group, on an EFA
 P5/P6 pool. That needs a reservation in practice: see
 [`karpenter-nodepool`'s "Bringing a reservation or Capacity Block"](../karpenter-nodepool/README.md#bringing-a-reservation-or-capacity-block).
 
+## Who can call this model
+
+The team that deploys a model owns it. `spec.access` (Backstage writes it):
+
+```yaml
+access:
+  owner_cidrs: [10.20.0.0/16]          # the owner environment's VPC CIDR(s)
+  consumers:                           # uat/prod only; approved in Backstage
+    quant-research: { cidrs: [10.30.0.0/16], weight: 1 }
+  oidc:                                # optional
+    issuer: https://idp.example.com
+    jwks_uri: https://idp.example.com/jwks
+    audiences: [phoenix-models]
+    consumer_claim: azp
+```
+
+- **Network identity (default).** Each environment's VPC has its own
+  IPAM-allocated CIDR, so the caller's address says which environment it is.
+  On istio's internal gateway an `AuthorizationPolicy` refuses this model's
+  hostname to any address outside `owner_cidrs` and the consumers' CIDRs (a
+  DENY with `notIpBlocks`: an ALLOW would close every other host on the shared
+  gateway). An `EnvoyFilter` (Lua) sets `x-phoenix-consumer`, and flow
+  control's `x-gateway-inference-fairness-id`, to the matching name (the
+  owner team, a consumer, or `unknown`), replacing whatever the client sent.
+  Granularity: per environment. It needs istio's internal NLB to keep client
+  addresses, which the `istio` unit sets.
+- **OIDC (option).** With `oidc.issuer`, a `RequestAuthentication` validates
+  tokens against `jwks_uri` and a second policy refuses requests without a
+  valid token from that issuer, on top of the network rule. The consumer is
+  the token's `consumer_claim` (default `azp`), written over any client-sent
+  header. Granularity: per service or person. Any IdP works (Okta, Entra ID,
+  Cognito, Keycloak, …).
+- **sandbox / stage**: owner only. A non-empty `consumers` fails the plan
+  (`consumers_only_uat_prod`).
+- **uat / prod**: with any consumer, `llm_d.flow_control` is forced on, so one
+  team can't starve the others; consumers start equal (round-robin per
+  consumer). `weight` is recorded for the owner's priority lever, which
+  llm-d `v0.10.0`'s fairness policy does not take yet.
+- With `owner_cidrs` empty and no OIDC nothing is rendered: anyone who can
+  reach the internal gateway can call the model, as before this option.
+
+**Segment note.** sandbox, stage and uat share the non-production transit
+gateway segment (prod is isolated), so a sandbox or stage VPC can route to a
+uat model: the AuthorizationPolicy, not routing, is what keeps them off it.
+
 **Neuron** (`hardware: neuron`, default path only, no llm-d options): the
 Neuron build of vLLM, started as `python -m vllm.entrypoints.openai.api_server`
 with the same `--model=/models/<model>/<version>` (its entrypoint runs the
@@ -151,7 +196,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`, `default_render_unchanged`, `option_routing`, `option_kv_offload`, `option_flow_control`, `option_autoscaling`, `option_multi_node`, `option_wide_ep_single_node`, `option_pd_with_kv_offload`, `wide_ep_600b_fixture`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`, `default_render_unchanged`, `option_routing`, `option_kv_offload`, `option_flow_control`, `option_autoscaling`, `option_multi_node`, `option_wide_ep_single_node`, `option_pd_with_kv_offload`, `wide_ep_600b_fixture`, `uat_allows_only_owner_and_consumers`, `shared_allows_consumers`, `consumer_header_overwritten`, `consumers_only_uat_prod`, `shared_forces_flow_control`, `oidc_option`).
 
 ### Outputs
 

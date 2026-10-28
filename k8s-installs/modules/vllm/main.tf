@@ -74,6 +74,14 @@ resource "terraform_data" "validation" {
       error_message = "spec.hardware is ${local.config.hardware} but pool gpu-${coalesce(local.config.gpu, "none")} is ${local.pool_accelerator}: pick a ${local.config.hardware} GPU type."
     }
     precondition {
+      condition     = !local.config.enabled || !local.shared || contains(["uat", "prod"], local.tier)
+      error_message = "spec.access.consumers is for uat and prod only (consumers_only_uat_prod); ${local.tier} models serve their owner."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.oidc_on || local.oidc.jwks_uri != null
+      error_message = "spec.access.oidc needs jwks_uri with issuer."
+    }
+    precondition {
       condition     = !local.config.enabled || alltrue(values(local.option_checks))
       error_message = "spec.llm_d is invalid; failing checks: ${join(", ", [for k, ok in local.option_checks : k if !ok])}. llm-d options need hardware nvidia and the cluster's llm-d unit; wide_ep needs multi_node; multi_node needs nodes_per_replica >= 2 (and the reverse); multi_node, pd_disaggregation and wide_ep need an EFA pool; options must be in llm-d ${try(local.llm_d_state.version, "(not installed)")}'s supported_options (${join(", ", try(local.llm_d_state.supported_options, []))})."
     }
@@ -158,7 +166,10 @@ resource "helm_release" "server" {
       gateway  = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }
       pool     = local.pool_name
     }
-  }, [for v in [{ llmD = local.llm_d_values }] : v if local.llm_d_any]...))]
+    }, concat(
+    [for v in [{ llmD = local.llm_d_values }] : v if local.llm_d_any],
+    [for v in [{ access = local.access_values }] : v if local.access_on],
+  )...))]
 
   depends_on = [helm_release.pool, helm_release.router]
 }

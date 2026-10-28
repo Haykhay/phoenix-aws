@@ -41,8 +41,10 @@ locals {
     pool_chart           = "v1.5.0"                                           # inferencepool chart + endpoint picker (InferencePool v1)
   }
 
-  config    = merge(local.defaults, module.context.spec)
-  llm_d     = merge(local.defaults.llm_d, try(module.context.spec.llm_d, {}))
+  config = merge(local.defaults, module.context.spec)
+  # Shared in uat/prod (any consumer) forces flow control: one team can't starve the rest.
+  llm_d = merge(local.defaults.llm_d, try(module.context.spec.llm_d, {}),
+  [for f in [{ flow_control = true }] : f if local.shared && contains(["uat", "prod"], local.tier)]...)
   llm_d_on  = [for k, on in local.llm_d : k if on]
   llm_d_any = length(local.llm_d_on) > 0
 
