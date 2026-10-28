@@ -82,6 +82,7 @@ is `Terraform-Role` (created by account vending). The workflow assumes
 |---|---|---|
 | `core-network` | VPCs (CIDR from IPAM), subnets, NAT, endpoints, optional TGW | IPAM only — no literal CIDRs |
 | `core-platform` | EKS clusters, system node group, addons, Karpenter IAM, observability bindings | GPU capacity comes from Karpenter pools in k8s-installs |
+| `model-cache` | FSx for Lustre per cluster, lazy-loading the group's `model-store` bucket | per cluster (`model-cache.<cluster>.yaml`); `LongLive` from the tier's setting |
 | `data-rds` | RDS PostgreSQL/MySQL | `eks_clusters` required with several clusters |
 | `data-elasticache` | ElastiCache (Valkey/Redis) | 40-character ID limit checked at plan |
 | `data-msk` | MSK (Kafka), IAM auth, optional SCRAM | |

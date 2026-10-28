@@ -54,6 +54,12 @@ output "vpc_names" {
   value       = sort(keys(local.vpcs))
 }
 
+# model-cache keeps FSx through teardowns only inside a VPC that survives them.
+output "long_live" {
+  description = "Whether this environment's network is LongLive (survives weekend teardowns)."
+  value       = try(module.context.config.tags.LongLive, false) == true
+}
+
 output "name_prefix" {
   description = "Naming prefix for account/region-level network resources."
   value       = local.name_prefix
