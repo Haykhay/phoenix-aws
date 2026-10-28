@@ -101,6 +101,11 @@ override_data {
   }
 }
 
+override_data {
+  target = data.terraform_remote_state.llm_d
+  values = { outputs = {} }
+}
+
 run "plans_with_defaults" {
   command = plan
 
@@ -341,5 +346,152 @@ run "nvidia_by_default" {
   assert {
     condition     = yamldecode(helm_release.server[0].values[0]).accelerator.resource == "nvidia.com/gpu" && yamldecode(helm_release.server[0].values[0]).tensorParallel == 1
     error_message = "models run on NVIDIA by default, tensor parallel across their GPUs"
+  }
+}
+
+# llm-d options. The file-level llm-d override is "not installed": the
+# default path must never need it.
+run "no_options_needs_no_llm_d" {
+  command = plan
+
+  assert {
+    condition     = alltrue(values(local.option_checks)) && !local.llm_d_any
+    error_message = "a model with no llm-d options plans without llm-d"
+  }
+}
+
+run "routing_allowed" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.routing.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = alltrue(values(local.option_checks))
+    error_message = "routing on NVIDIA with llm-d installed passes every rule"
+  }
+}
+
+run "llm_d_not_installed_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.routing.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "invalid_combinations_rejected_wide_ep_alone" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.wide-ep-alone.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "invalid_combinations_rejected_routing_on_neuron" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.routing-neuron.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, accelerator = "neuron" } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "invalid_combinations_rejected_pd_without_efa" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.pd.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "invalid_combinations_rejected_not_in_release" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.batch.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.9.0", supported_options = ["routing"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "multi_node_needs_two_nodes" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.multi-node-one.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "multi_node_on_efa_pool_allowed" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.multi-node.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "batch", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = alltrue(values(local.option_checks))
+    error_message = "multi-node over two nodes on an EFA pool passes every rule"
   }
 }

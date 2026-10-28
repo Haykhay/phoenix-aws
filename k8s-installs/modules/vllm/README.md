@@ -34,6 +34,27 @@ What it creates, in `models`:
   vLLM's own load metrics.
 - **HTTPRoute** on istio's internal gateway: `https://<slug>-<cluster>.<internal zone>/v1`
   (output `endpoint`), with an external-dns record.
+**llm-d options** (`spec.llm_d`, all `false`; all off is the default path,
+vLLM + endpoint picker, with no llm-d unit needed):
+
+| Option | |
+|---|---|
+| `routing` | prefix-cache, load and session aware scheduling |
+| `kv_offload` | tiered KV cache (CPU, then local disk) |
+| `flow_control` | multi-tenant QoS |
+| `autoscaling` | SLO-aware; never to zero |
+| `batch` | batch serving |
+| `multi_node` | one replica over `nodes_per_replica` (≥ 2) nodes, LeaderWorkerSet |
+| `pd_disaggregation` | prefill/decode split |
+| `wide_ep` | wide expert parallelism (needs `multi_node`) |
+
+The plan checks them (`option_checks`) and names every rule broken:
+`nvidia_only`, `wide_ep_needs_multi_node`, `multi_node_needs_nodes`,
+`efa_required` (multi_node, pd_disaggregation, wide_ep need a pool with
+`efa: true`), `llm_d_installed` (the cluster's `llm-d` unit, only when an option
+is on) and `available_in_release` (the option is in that unit's
+`supported_options`).
+
 **Neuron** (`hardware: neuron`, default path only, no llm-d options): the
 Neuron build of vLLM, started as `python -m vllm.entrypoints.openai.api_server`
 with the same `--model=/models/<model>/<version>` (its entrypoint runs the
@@ -68,6 +89,7 @@ the model's weights or the cache claim.
 - `aws-fsx-csi-driver` (the plan fails without it): state `<env_id>/<region>/k8s/<cluster>/aws-fsx-csi-driver/terraform.tfstate`
 - `model-weights.<slug>`, same slug as this unit, at `spec.version` (the plan fails without it or on another version): state `<env_id>/<region>/k8s/<cluster>/model-weights.<slug>/terraform.tfstate`
 - `nvidia-gpu-operator` (NVIDIA) or `neuron-device-plugin` (Neuron)
+- `llm-d`, only when a `spec.llm_d` option is on (the plan fails without it)
 - `external-dns`
 
 **You provide:**
@@ -101,7 +123,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`).
 
 ### Outputs
 

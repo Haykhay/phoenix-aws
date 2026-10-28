@@ -4,9 +4,21 @@ locals {
     # Served model name; defaults to the weights unit's model.
     model = null
     # The model-weights version to serve, and the GPU type (Backstage fills both).
-    version          = null
-    gpu              = null
-    replicas         = 1
+    version           = null
+    gpu               = null
+    replicas          = 1
+    nodes_per_replica = 1 # > 1 needs llm_d.multi_node
+    # llm-d options, all off: off is the default path (vLLM + endpoint picker).
+    llm_d = {
+      routing           = false # prefix-cache, load and session aware scheduling
+      kv_offload        = false # tiered KV cache (CPU, then local disk)
+      flow_control      = false # multi-tenant QoS
+      autoscaling       = false # SLO-aware; never to zero
+      batch             = false
+      multi_node        = false # LeaderWorkerSet; nodes_per_replica >= 2
+      pd_disaggregation = false
+      wide_ep           = false
+    }
     gpus_per_replica = 1
     max_model_len    = null
     extra_args       = []
@@ -19,6 +31,21 @@ locals {
   }
 
   config    = merge(local.defaults, module.context.spec)
+  llm_d     = merge(local.defaults.llm_d, try(module.context.spec.llm_d, {}))
+  llm_d_on  = [for k, on in local.llm_d : k if on]
+  llm_d_any = length(local.llm_d_on) > 0
+
+  # Option rules, each one name; the plan fails naming every rule broken.
+  llm_d_state = try(data.terraform_remote_state.llm_d.outputs, {})
+  pool_efa    = try(data.terraform_remote_state.gpu_pool.outputs.efa, false)
+  option_checks = {
+    nvidia_only              = !local.llm_d_any || local.config.hardware == "nvidia"
+    wide_ep_needs_multi_node = !local.llm_d.wide_ep || local.llm_d.multi_node
+    multi_node_needs_nodes   = local.llm_d.multi_node == (local.config.nodes_per_replica >= 2)
+    efa_required             = !(local.llm_d.multi_node || local.llm_d.pd_disaggregation || local.llm_d.wide_ep) || local.pool_efa
+    llm_d_installed          = !local.llm_d_any || can(local.llm_d_state.supported_options)
+    available_in_release     = length(setsubtract(local.llm_d_on, try(local.llm_d_state.supported_options, local.llm_d_on))) == 0
+  }
   namespace = "models"
 
   # One unit = one model: vllm.<model slug>.yaml

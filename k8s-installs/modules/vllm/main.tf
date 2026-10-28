@@ -44,6 +44,17 @@ data "terraform_remote_state" "fsx" {
   defaults = {}
 }
 
+# The cluster's llm-d prerequisites: needed only when an llm-d option is on.
+data "terraform_remote_state" "llm_d" {
+  backend = "s3"
+  config = {
+    bucket = module.context.state.bucket
+    region = module.context.state.region
+    key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/llm-d/terraform.tfstate"
+  }
+  defaults = {}
+}
+
 resource "terraform_data" "validation" {
   lifecycle {
     precondition {
@@ -61,6 +72,10 @@ resource "terraform_data" "validation" {
     precondition {
       condition     = !local.config.enabled || !can(data.terraform_remote_state.gpu_pool.outputs.node_pool) || local.config.hardware == local.pool_accelerator
       error_message = "spec.hardware is ${local.config.hardware} but pool gpu-${coalesce(local.config.gpu, "none")} is ${local.pool_accelerator}: pick a ${local.config.hardware} GPU type."
+    }
+    precondition {
+      condition     = !local.config.enabled || alltrue(values(local.option_checks))
+      error_message = "spec.llm_d is invalid; failing checks: ${join(", ", [for k, ok in local.option_checks : k if !ok])}. llm-d options need hardware nvidia and the cluster's llm-d unit; wide_ep needs multi_node; multi_node needs nodes_per_replica >= 2 (and the reverse); multi_node, pd_disaggregation and wide_ep need an EFA pool; options must be in llm-d ${try(local.llm_d_state.version, "(not installed)")}'s supported_options (${join(", ", try(local.llm_d_state.supported_options, []))})."
     }
     precondition {
       condition     = !local.config.enabled || can(local.weights.cache_path)
