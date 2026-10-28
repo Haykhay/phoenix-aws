@@ -1,0 +1,38 @@
+# Static: the file system belongs to infrastructure's model-cache unit, so
+# deleting the claim never deletes it.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.name }}-{{ .Release.Namespace }}
+spec:
+  # Informational for a static Lustre volume; the claim asks for the same.
+  capacity:
+    storage: 1200Gi
+  volumeMode: Filesystem
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.name }}
+  mountOptions: [flock]
+  csi:
+    driver: fsx.csi.aws.com
+    volumeHandle: {{ .Values.fsx.volumeHandle }}
+    readOnly: true
+    volumeAttributes:
+      dnsname: {{ .Values.fsx.dnsName }}
+      mountname: {{ .Values.fsx.mountName }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: {{ .Values.name }}-{{ .Release.Namespace }}
+  resources:
+    requests:
+      storage: 1200Gi
