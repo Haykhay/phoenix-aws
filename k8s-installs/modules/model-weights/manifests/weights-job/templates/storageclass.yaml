@@ -1,0 +1,12 @@
+# Scratch for the fetch, deleted with the pod. Per release: the cluster has
+# no default class, and a shared one would belong to a single release.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.name }}-scratch
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

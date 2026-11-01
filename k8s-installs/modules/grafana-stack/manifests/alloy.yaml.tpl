@@ -17,13 +17,14 @@ alloy:
       }
 
       // Pods that ask for it (prometheus.io/scrape = "true"), plus the GPU
-      // operator's DCGM exporter, which it labels app=nvidia-dcgm-exporter.
+      // operator's DCGM exporter (app=nvidia-dcgm-exporter) and Karpenter's
+      // controller (its http-metrics port).
       discovery.relabel "scrape" {
         targets = discovery.kubernetes.pods.targets
         rule {
-          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape", "__meta_kubernetes_pod_label_app"]
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape", "__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_container_port_name"]
           separator     = ";"
-          regex         = "true;.*|.*;nvidia-dcgm-exporter"
+          regex         = "true;.*|.*;nvidia-dcgm-exporter;.*|.*;.*;karpenter;http-metrics"
           action        = "keep"
         }
         rule {
@@ -36,8 +37,11 @@ alloy:
         }
       }
 
+      // honor_labels: exporters that describe other pods (kube-state-metrics,
+      // DCGM) keep their own namespace and pod labels.
       prometheus.scrape "pods" {
-        targets    = discovery.relabel.scrape.output
+        targets      = discovery.relabel.scrape.output
+        honor_labels = true
         forward_to = [prometheus.remote_write.mimir.receiver]
       }
 

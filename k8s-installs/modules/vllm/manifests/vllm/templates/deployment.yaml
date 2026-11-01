@@ -1,3 +1,5 @@
+{{- if not .Values.llmD }}
+# Default path. With any llm-d option, llm-d.yaml renders the server instead.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,16 +24,20 @@ spec:
       nodeSelector:
         phoenix/gpu: {{ .Values.gpu.type | quote }}
       tolerations:
-        - key: nvidia.com/gpu
+        - key: {{ .Values.accelerator.taint }}
           operator: Exists
           effect: NoSchedule
       containers:
         - name: vllm
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- with .Values.command }}
+          command: {{ toJson . }}
+          {{- end }}
           args:
-            - --model={{ .Values.model }}
+            - --model={{ .Values.modelPath }}
+            - --served-model-name={{ .Values.servedName }}
             - --port=8000
-            - --tensor-parallel-size={{ .Values.gpu.perReplica }}
+            - --tensor-parallel-size={{ .Values.tensorParallel }}
             {{- with .Values.maxModelLen }}
             - --max-model-len={{ . }}
             {{- end }}
@@ -39,18 +45,15 @@ spec:
             - {{ . | quote }}
             {{- end }}
           env:
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.name }}-hf-token
-                  key: token
-                  optional: true
+            # Weights come from the cache only; never the internet.
+            - name: HF_HUB_OFFLINE
+              value: "1"
           ports:
             - name: http
               containerPort: 8000
           resources:
             limits:
-              nvidia.com/gpu: {{ .Values.gpu.perReplica }}
+              {{ .Values.accelerator.resource }}: {{ .Values.gpu.perReplica }}
           readinessProbe:
             httpGet:
               path: /health
@@ -62,15 +65,19 @@ spec:
               path: /health
               port: http
             periodSeconds: 10
-            failureThreshold: 180 # up to 30 min to download and load
+            failureThreshold: {{ div .Values.startupSeconds 10 }} # max(30 min, 6 s per GiB of weights)
           volumeMounts:
-            - name: cache
-              mountPath: /root/.cache/huggingface
+            - name: weights
+              mountPath: {{ .Values.cache.mountPath }}
+              subPath: {{ .Values.cache.subPath }}
+              readOnly: true
             - name: shm
               mountPath: /dev/shm
       volumes:
-        - name: cache
-          emptyDir: {}
+        - name: weights
+          persistentVolumeClaim:
+            claimName: {{ .Values.cache.claim }}
+            readOnly: true
         - name: shm
           emptyDir:
             medium: Memory
@@ -88,3 +95,4 @@ spec:
     - name: http
       port: 8000
       targetPort: http
+{{- end }}

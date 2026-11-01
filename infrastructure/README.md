@@ -82,14 +82,16 @@ is `Terraform-Role` (created by account vending). The workflow assumes
 |---|---|---|
 | `core-network` | VPCs (CIDR from IPAM), subnets, NAT, endpoints, optional TGW | IPAM only — no literal CIDRs |
 | `core-platform` | EKS clusters, system node group, addons, Karpenter IAM, observability bindings | GPU capacity comes from Karpenter pools in k8s-installs |
+| `model-cache` | FSx for Lustre per cluster, lazy-loading the group's `model-store` bucket | per cluster (`model-cache.<cluster>.yaml`); `LongLive` from the tier's setting |
 | `data-rds` | RDS PostgreSQL/MySQL | `eks_clusters` required with several clusters |
 | `data-elasticache` | ElastiCache (Valkey/Redis) | 40-character ID limit checked at plan |
 | `data-msk` | MSK (Kafka), IAM auth, optional SCRAM | |
 | `dns` | Route 53 public/internal zone pairs, delegated from the management account | global scope only |
 | `observability` | Long-lived S3 history + Pod Identity roles for each cluster's Grafana stack and Langfuse | account-level, `LongLive: true` required |
+| `model-store` | Long-lived S3 bucket of model weights (`<model>/<version>/`) + the copy job's Pod Identity role | account-level, `LongLive: true` required |
 | `ecr` | Pull-through cache from the central ECR hub (fed from Artifactory) | account-level |
 
-Account-level sets (`observability`, `ecr`) live in the group's `shared`
+Account-level sets (`observability`, `model-store`, `ecr`) live in the group's `shared`
 environment: `environments/<tier>/<group>-shared/<region>/`.
 
 Each module's README has its full `spec`.

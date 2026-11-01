@@ -36,9 +36,36 @@ path); alert in Grafana. Usage reporting is off.
 
 | What | Where |
 |---|---|
-| Prometheus metrics | annotate the pod `prometheus.io/scrape: "true"`; the GPU operator's DCGM exporter (`app=nvidia-dcgm-exporter`) is scraped without it |
+| Prometheus metrics | annotate the pod `prometheus.io/scrape: "true"`; the GPU operator's DCGM exporter (`app=nvidia-dcgm-exporter`) and Karpenter's controller (`http-metrics` port) are scraped without it. Scrapes keep the exporter's own `namespace`/`pod` labels (`honor_labels`), so kube-state-metrics and DCGM describe the pods they measure |
 | Logs | automatic (every pod) |
 | Traces | OTLP to `alloy.monitoring.svc:4317` (gRPC) or `:4318` (HTTP) |
+
+## Model serving
+
+With `spec.model_serving` (default `true`) Grafana gets a **Model serving**
+folder, and the stack adds `kube-state-metrics` (prometheus-community chart
+`8.6.0`, 2026-09-26) for pod start times and Pending reasons. Backstage reads
+the dashboards and alerts from Grafana; it never needs Kubernetes access.
+
+| Dashboard | uid | |
+|---|---|---|
+| Model serving | `phoenix-model-serving` | per model (`request_host`) and per consumer (`x-phoenix-consumer`, tagged on istio's gateway metrics): requests, p95 latency; per model: tokens, time to first token; start time (created → Ready); Pending reasons (kube-state-metrics, Karpenter); GPU and NeuronCore utilisation |
+| llm-d vLLM Overview | `llm-d-vllm-overview` | vendored unmodified from llm-d `v0.10.0`, `guides/recipes/observability/grafana/dashboards/` |
+| Inference Gateway | `llm-d-inference-gateway` | same source |
+| llm-d Performance | `llm-d-performance-kv-cache` | same source |
+| llm-d Failure & Saturation | `llm-d-failure-saturation` | same source |
+
+Alerts (folder Model serving, labelled with the environment's `owner.team` and
+the cluster), one per anti-goal:
+
+| Alert | Fires when |
+|---|---|
+| `ModelStartSlow` | a model pod has been created but not Ready for over 1800 s |
+| `AcceleratorIdle` | a model's GPUs (DCGM) or a node's NeuronCores average under 5% for 30 minutes |
+| `ModelPendingCapacity` | a model pod has been unschedulable for over 15 minutes: Karpenter couldn't get the capacity (see karpenter-nodepool's "What you can achieve") |
+
+Updating llm-d's dashboards: copy the new release's files over
+`manifests/dashboards/llm-d/` and change the version here.
 
 ## Spec
 
@@ -46,6 +73,7 @@ path); alert in Grafana. Usage reporting is off.
 |---|---|---|
 | `observability_environment` | `shared` | the group environment holding the observability unit |
 | `chart_versions` | as above | platform-pinned, per release |
+| `model_serving` | `true` | model-serving dashboards, alerts and kube-state-metrics (below) |
 | `enabled` | `true` | |
 
 The plan fails clearly if the group's observability unit has not been applied.
@@ -95,7 +123,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/grafana-stack.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `model_serving_off`).
 
 ### Outputs
 

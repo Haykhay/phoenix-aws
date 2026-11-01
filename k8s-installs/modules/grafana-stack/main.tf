@@ -84,7 +84,27 @@ resource "helm_release" "grafana" {
   chart      = "grafana"
   version    = local.chart_versions.grafana
   namespace  = local.namespace
-  values     = [templatefile("${path.module}/manifests/grafana.yaml.tpl", local.template_vars)]
+  values = concat(
+    [templatefile("${path.module}/manifests/grafana.yaml.tpl", local.template_vars)],
+    local.config.model_serving ? [local.model_serving_values] : [],
+  )
 
   depends_on = [helm_release.mimir, helm_release.loki, helm_release.tempo]
+}
+
+# Pod start and Ready times and Pending reasons for the model-serving dashboard
+# and alerts; Alloy scrapes it by annotation.
+resource "helm_release" "kube_state_metrics" {
+  count      = local.config.enabled && local.config.model_serving ? 1 : 0
+  name       = "kube-state-metrics"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-state-metrics"
+  version    = local.chart_versions.kube_state_metrics
+  namespace  = local.namespace
+
+  values = [yamlencode({
+    podAnnotations = { "prometheus.io/scrape" = "true", "prometheus.io/port" = "8080" }
+  })]
+
+  depends_on = [helm_release.mimir]
 }

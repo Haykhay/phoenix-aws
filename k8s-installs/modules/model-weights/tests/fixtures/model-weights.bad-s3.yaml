@@ -1,0 +1,19 @@
+organisation: acme
+group: research
+environment: sandbox
+
+tier: sandbox
+region: eu-west-1
+cluster: "1"
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: test
+  LongLive: false
+spec:
+  source: { type: s3, uri: 's3:/x' }
+  version: v1

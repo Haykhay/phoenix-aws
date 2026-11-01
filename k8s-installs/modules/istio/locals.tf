@@ -25,7 +25,12 @@ locals {
     enabled = try(local.config.settings.gateways.internal.enabled, true)
     service_annotations = merge(
       local.nlb_annotations,
-      { "service.beta.kubernetes.io/aws-load-balancer-scheme" = "internal" },
+      {
+        "service.beta.kubernetes.io/aws-load-balancer-scheme" = "internal"
+        # IP targets don't keep the caller's address by default; model access
+        # (vllm spec.access) is decided by it.
+        "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes" = "preserve_client_ip.enabled=true"
+      },
       try(local.config.settings.gateways.internal.service_annotations, {}),
     )
   }

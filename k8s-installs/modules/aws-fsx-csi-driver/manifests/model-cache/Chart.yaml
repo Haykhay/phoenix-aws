@@ -1,0 +1,5 @@
+apiVersion: v2
+name: model-cache
+description: Static read-only PV and PVC for the cluster's FSx for Lustre model cache
+type: application
+version: 0.1.0

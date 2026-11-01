@@ -144,3 +144,49 @@ run "disabled_plans_nothing" {
     error_message = "spec.enabled: false installs nothing"
   }
 }
+
+run "model_serving_dashboards" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for uid in ["phoenix-model-serving", "llm-d-vllm-overview", "llm-d-inference-gateway", "llm-d-performance-kv-cache", "llm-d-failure-saturation"] :
+      contains([for d in values(yamldecode(helm_release.grafana[0].values[1]).dashboards["model-serving"]) : jsondecode(d.json).uid], uid)
+    ])
+    error_message = "the Model serving dashboard and llm-d's published dashboards are provisioned"
+  }
+  assert {
+    condition = alltrue([
+      for d in values(yamldecode(helm_release.grafana[0].values[1]).dashboards["model-serving"]) :
+      anytrue([for v in try(jsondecode(d.json).templating.list, []) : v.type == "datasource" && v.query == "prometheus"]) || jsondecode(d.json).uid == "phoenix-model-serving"
+    ])
+    error_message = "vendored dashboards choose their Prometheus data source by variable (the default, Mimir)"
+  }
+  assert {
+    condition = toset([for r in yamldecode(helm_release.grafana[0].values[1]).alerting["model-serving.yaml"].groups[0].rules : r.title]) == toset([
+      "ModelStartSlow", "AcceleratorIdle", "ModelPendingCapacity",
+    ])
+    error_message = "the three anti-goal alerts: slow start, idle accelerators, pending for capacity"
+  }
+  assert {
+    condition     = helm_release.kube_state_metrics[0].version == "8.6.0"
+    error_message = "kube-state-metrics (pod start and Pending reasons), pinned"
+  }
+  assert {
+    condition     = strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "karpenter;http-metrics")
+    error_message = "Alloy scrapes Karpenter's metrics"
+  }
+}
+
+run "model_serving_off" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/no-model-serving.yaml"
+  }
+
+  assert {
+    condition     = length(helm_release.grafana[0].values) == 1 && length(helm_release.kube_state_metrics) == 0
+    error_message = "spec.model_serving: false provisions no model-serving dashboards, alerts or kube-state-metrics"
+  }
+}

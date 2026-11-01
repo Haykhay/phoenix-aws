@@ -1,0 +1,109 @@
+{{- $done := "[ -f /work/.done ] && { echo \"already complete\"; exit 0; }" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  backoffLimit: 3
+  # Frees the scratch volume an hour after the copy; the weights stay in S3.
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount }}
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 101 # curlimages/curl runs as curl_user (101); the scratch volume must be writable
+      initContainers:
+        # A version is written once: if its marker exists, every step is a no-op.
+        - name: check
+          image: {{ .Values.images.upload }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if aws s3api head-object --bucket "$BUCKET" --key "$KEY/_COMPLETE" >/dev/null 2>&1; then
+                touch /work/.done
+              fi
+          env: &env
+            - { name: AWS_REGION, value: {{ .Values.region | quote }} }
+            - { name: BUCKET, value: {{ .Values.bucket | quote }} }
+            - { name: KEY, value: {{ .Values.key | quote }} }
+            - { name: TYPE, value: {{ .Values.source.type | quote }} }
+            - { name: URI, value: {{ .Values.source.uri | quote }} }
+            - { name: VERSION, value: {{ .Values.version | quote }} }
+          volumeMounts: &mounts
+            - { name: work, mountPath: /work }
+        - name: fetch
+          {{- if eq .Values.source.type "huggingface" }}
+          image: {{ .Values.images.hf }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{ $done }}
+              set -e
+              pip install --no-cache-dir -q {{ .Values.hfPackage | quote }}
+              hf download "$URI" --revision "$VERSION" --local-dir /work/data
+          {{- else if eq .Values.source.type "s3" }}
+          # The copy role reads the source: its bucket policy must grant it.
+          image: {{ .Values.images.s3 }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{ $done }}
+              set -e
+              aws s3 sync "$URI" /work/data --only-show-errors
+          {{- else }}
+          image: {{ .Values.images.https }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{ $done }}
+              set -e
+              mkdir -p /work/data
+              set -- -fsSL --retry 5 -o /work/download "$URI"
+              [ -n "$TOKEN" ] && set -- -H "Authorization: Bearer $TOKEN" "$@"
+              curl "$@"
+              echo "$SHA256  /work/download" | sha256sum -c -
+              if tar -tf /work/download >/dev/null 2>&1; then
+                tar -xf /work/download -C /work/data && rm /work/download
+              else
+                mv /work/download "/work/data/${URI##*/}"
+              fi
+          {{- end }}
+          env:
+            - { name: AWS_REGION, value: {{ .Values.region | quote }} }
+            - { name: URI, value: {{ .Values.source.uri | quote }} }
+            - { name: VERSION, value: {{ .Values.version | quote }} }
+            - { name: SHA256, value: {{ .Values.sha256 | quote }} }
+            - { name: HF_HOME, value: /work/.hf }
+            {{- if .Values.credentialsSecret }}
+            # Not optional: the pod waits until external-secrets has synced it.
+            - name: {{ eq .Values.source.type "huggingface" | ternary "HF_TOKEN" "TOKEN" }}
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.name }}-source, key: token }
+            {{- end }}
+          volumeMounts: *mounts
+      containers:
+        # _COMPLETE last: a half-copied version never looks complete.
+        - name: upload
+          image: {{ .Values.images.upload }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{ $done }}
+              set -e
+              aws s3 sync /work/data "s3://$BUCKET/$KEY/" --exclude ".cache/*" --only-show-errors
+              printf 'type=%s\nuri=%s\nversion=%s\n' "$TYPE" "$URI" "$VERSION" \
+                | aws s3 cp - "s3://$BUCKET/$KEY/_COMPLETE"
+          env: *env
+          volumeMounts: *mounts
+      volumes:
+        - name: work
+          ephemeral:
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: {{ .Values.name }}-scratch
+                resources:
+                  requests:
+                    storage: {{ .Values.sizeGiB }}Gi

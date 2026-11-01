@@ -12,3 +12,5 @@ gateways:
   external:
     enabled: false
     serviceAnnotations: {}
+telemetry:
+  consumerTags: false

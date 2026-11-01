@@ -192,3 +192,13 @@ run "pool_cannot_be_pinned" {
 
   expect_failures = [aws_vpc_ipam_pool_cidr_allocation.this]
 }
+
+# model-cache refuses a long-lived FSx inside a VPC a teardown would delete.
+run "long_live_reported" {
+  command = plan
+
+  assert {
+    condition     = output.long_live == false
+    error_message = "an environment without tags.LongLive: true reports long_live = false"
+  }
+}

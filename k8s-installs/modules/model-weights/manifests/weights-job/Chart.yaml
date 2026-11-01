@@ -1,0 +1,5 @@
+apiVersion: v2
+name: weights-job
+description: One-off copy of a pinned model version into the weights bucket
+type: application
+version: 0.1.0

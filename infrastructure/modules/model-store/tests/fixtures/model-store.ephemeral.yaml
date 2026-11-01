@@ -1,0 +1,14 @@
+organisation: acme
+group: research
+environment: shared
+tier: sandbox
+region: eu-west-1
+account_id: "111111111111"
+module_ref: main
+state:
+  bucket: acme-tfstate-111111111111
+  region: eu-west-1
+tags:
+  owner.team: research
+  Reason: model weights for the research group
+  LongLive: false

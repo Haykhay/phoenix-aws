@@ -1,0 +1,5 @@
+apiVersion: v2
+name: neuron-monitor
+description: neuron-monitor with its Prometheus exporter on every Neuron node
+type: application
+version: 0.1.0

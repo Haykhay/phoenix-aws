@@ -1,0 +1,98 @@
+{{- with .Values.access }}
+{{- $gw := dict "gateway.networking.k8s.io/gateway-name" .gateway.name }}
+{{- if .allowedCidrs }}
+# Network identity: a DENY for this hostname from anywhere else. An ALLOW
+# policy would also shut every other host on the shared gateway. ipBlocks is
+# the caller's own address: the internal NLB preserves it.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $.Values.name }}-network
+  namespace: {{ .gateway.namespace }}
+spec:
+  selector:
+    matchLabels: {{ toJson $gw }}
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            hosts: [{{ .hostname | quote }}, {{ printf "%s:*" .hostname | quote }}]
+      {{- if .allowedCidrs }}
+      from:
+        - source:
+            notIpBlocks: {{ toJson .allowedCidrs }}
+      {{- end }}
+{{- end }}
+{{- if .consumerLua }}
+---
+# x-phoenix-consumer (and flow control's fairness id) from the matched CIDR,
+# replacing anything the client sent. First in the chain, so every later
+# filter (the InferencePool's ext_proc included) sees the stamped value.
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: {{ $.Values.name }}-consumer
+  namespace: {{ .gateway.namespace }}
+spec:
+  workloadSelector:
+    labels: {{ toJson $gw }}
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_FIRST
+        value:
+          name: envoy.filters.http.lua.{{ $.Values.name }}
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: {{ .consumerLua | toJson }}
+{{- end }}
+{{- with .oidc }}
+---
+# OIDC option: a valid token from this issuer is required as well; the consumer
+# is its {{ .consumerClaim }} claim, written over any client-sent header.
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: {{ $.Values.name }}-oidc
+  namespace: {{ $.Values.access.gateway.namespace }}
+spec:
+  selector:
+    matchLabels: {{ toJson $gw }}
+  jwtRules:
+    - issuer: {{ .issuer | quote }}
+      jwksUri: {{ .jwksUri | quote }}
+      {{- with .audiences }}
+      audiences: {{ toJson . }}
+      {{- end }}
+      forwardOriginalToken: false
+      outputClaimToHeaders:
+        - { header: x-phoenix-consumer, claim: {{ .consumerClaim }} }
+        - { header: x-gateway-inference-fairness-id, claim: {{ .consumerClaim }} }
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $.Values.name }}-oidc
+  namespace: {{ $.Values.access.gateway.namespace }}
+spec:
+  selector:
+    matchLabels: {{ toJson $gw }}
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            hosts: [{{ $.Values.access.hostname | quote }}, {{ printf "%s:*" $.Values.access.hostname | quote }}]
+      from:
+        - source:
+            notRequestPrincipals: ["{{ .issuer }}/*"]
+{{- end }}
+{{- end }}

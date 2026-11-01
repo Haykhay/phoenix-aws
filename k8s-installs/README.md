@@ -29,8 +29,8 @@ modules/_boilerplate/       the four files every component starts from (document
 |---|---|
 | (every cluster, not shown) | cluster-config, karpenter, kyverno, falco, reloader, external-secrets, grafana-stack |
 | **Service** | cert-manager, aws-load-balancer-controller, istio, external-dns, argo-cd, kargo |
-| **Model serving** | the service set + nvidia-gpu-operator, vllm.&lt;model&gt;, clickhouse-operator, langfuse |
-| **GPU type** | karpenter-nodepool.&lt;gpu&gt;, nvidia-gpu-operator |
+| **Model serving** | the service set + aws-fsx-csi-driver, model-weights.&lt;model&gt;, vllm.&lt;model&gt;, clickhouse-operator, langfuse; llm-d when any llm-d option is chosen. Infrastructure first: model-store (once per group and region) and model-cache.&lt;cluster&gt; |
+| **GPU type** | karpenter-nodepool.&lt;gpu&gt;, plus nvidia-gpu-operator (NVIDIA) or neuron-device-plugin (Trainium/Inferentia) |
 | **Postgres / Redis / Kafka** | cloudnative-pg + cloudnative-pg-cluster.&lt;name&gt; / valkey-redis + valkey-redis-cluster.&lt;name&gt; / strimzi-kafka + strimzi-kafka-cluster.&lt;name&gt; (sandbox; stage and above use infrastructure's managed data-*) |
 
 The sets are Backstage catalog data (the Backstage repository's `phoenix/catalog/`); so are the
@@ -40,9 +40,16 @@ reverse):
 ```text
 cluster-config > karpenter > kyverno > falco > reloader > external-secrets > grafana-stack
 > cert-manager > aws-load-balancer-controller > external-dns > istio > argo-cd > kargo
-> nvidia-gpu-operator > karpenter-nodepool > vllm > clickhouse-operator > langfuse
+> nvidia-gpu-operator | neuron-device-plugin > karpenter-nodepool > aws-fsx-csi-driver > model-weights > llm-d > vllm
+> clickhouse-operator > langfuse
 > cloudnative-pg > cloudnative-pg-cluster > valkey-redis > valkey-redis-cluster > strimzi-kafka > strimzi-kafka-cluster
 ```
+
+Model serving also needs, from infrastructure, applied before `aws-fsx-csi-driver`:
+`model-store` (the group's weights bucket, in `<group>-shared`) and
+`model-cache.<cluster>` (FSx for Lustre linked to it). Backstage writes both
+with the model; the cache's `LongLive` is the tier's setting from the
+environment form.
 
 Each module's README has its spec, versions and what it needs first.
 
