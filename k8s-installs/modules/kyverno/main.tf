@@ -52,6 +52,21 @@ resource "helm_release" "kyverno_policies" {
       condition     = length(local.allowed_image_patterns) > 0
       error_message = "settings.allowed_image_patterns or settings.kyverno_policies.allowed_image_patterns must include at least one environment-specific allowed image pattern."
     }
+
+    precondition {
+      condition     = alltrue([for ns, q in local.quotas : alltrue([for acc, n in q : contains(keys(local.quota_resources), acc)])])
+      error_message = "spec.quotas: each namespace's accelerators must be nvidia or neuron."
+    }
+
+    precondition {
+      condition     = length(setintersection(keys(local.quotas), local.excluded_namespaces)) == 0
+      error_message = "spec.quotas: system namespaces (kube-system, kube-public, kube-node-lease, kyverno) take no GPU quota."
+    }
+
+    precondition {
+      condition     = alltrue([for ns, q in local.quotas : alltrue([for acc, n in q : try(n >= 0 && floor(n) == n, false)])])
+      error_message = "spec.quotas: each quota must be a whole number, 0 or more."
+    }
   }
 
   depends_on = [helm_release.kyverno]

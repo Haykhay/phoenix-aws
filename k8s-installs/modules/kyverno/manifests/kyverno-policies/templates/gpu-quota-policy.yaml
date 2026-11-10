@@ -1,0 +1,48 @@
+{{- if .Values.gpuQuotas }}
+# Lets Kyverno create and keep the generated ResourceQuotas in sync.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno:phoenix-gpu-quotas
+  labels:
+    rbac.kyverno.io/aggregate-to-admission-controller: "true"
+    rbac.kyverno.io/aggregate-to-background-controller: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: phoenix-gpu-quotas
+  annotations:
+    policies.kyverno.io/title: GPU quotas
+    policies.kyverno.io/description: >-
+      One ResourceQuota per listed namespace capping the GPUs and Neuron devices
+      its pods may request. Generated also into namespaces that already exist,
+      and kept in sync with this policy.
+spec:
+  rules:
+{{- range .Values.gpuQuotas }}
+    - name: {{ printf "gpu-quota-%s" .namespace | trunc 63 | trimSuffix "-" }}
+      match:
+        any:
+          - resources:
+              kinds: ["Namespace"]
+              names: [{{ .namespace | quote }}]
+      generate:
+        generateExisting: true
+        synchronize: true
+        apiVersion: v1
+        kind: ResourceQuota
+        name: phoenix-gpu-quota
+        namespace: {{ .namespace | quote }}
+        data:
+          spec:
+            hard:
+{{- range $resource, $count := .hard }}
+              {{ $resource }}: {{ $count | quote }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -10,3 +10,6 @@ environmentImagePolicy:
     - kube-public
     - kube-node-lease
     - kyverno
+
+# GPU quotas per namespace, from spec.quotas: [{ namespace, hard: { <resource>: "<n>" } }].
+gpuQuotas: []
