@@ -85,6 +85,8 @@ jobs:
             # <project>/modules/<name>; k8s _boilerplate is documentation, not a module.
             modules=$(git diff --name-only "$base...HEAD" -- 'infrastructure/modules/' 'k8s-installs/modules/' 'networking/modules/' \
               | cut -d/ -f1-3 | grep -v '^k8s-installs/modules/_boilerplate$' | sort -u || true)
+            # Only directories are modules: files beside them (modules/README.md) are docs.
+            modules=$(while read -r d; do if [ -d "$d" ]; then printf '%s\n' "$d"; fi; done <<<"$modules")
             # k8s-installs and networking build on infrastructure: they source
             # modules/context (k8s also modules/credentials and core-platform's
             # and dns's outputs). Any infrastructure module change re-tests
