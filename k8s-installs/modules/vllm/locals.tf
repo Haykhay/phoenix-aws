@@ -69,6 +69,14 @@ locals {
 
   gateway  = try(data.terraform_remote_state.istio.outputs.gateways.internal, null)
   hostname = "${local.slug}-${local.cluster_key}.${try(local.gateway.domain, "istio-missing")}"
+  # Optional: a hostname this model's clusters share, Route 53 failover between
+  # them (one PRIMARY, one SECONDARY). One label under the gateway's zone, so
+  # its wildcard listener and certificate cover it.
+  failover          = try(module.context.spec.failover, null)
+  failover_on       = local.failover != null
+  failover_domain   = try(local.gateway.domain, "istio-missing")
+  failover_hostname = local.failover_on ? lower(try(local.failover.hostname, "")) : null
+  hostnames         = concat([local.hostname], local.failover_on ? [local.failover_hostname] : [])
 
   weights          = try(data.terraform_remote_state.weights.outputs, {})
   cache_path       = try(local.weights.cache_path, null) == null ? "" : local.weights.cache_path

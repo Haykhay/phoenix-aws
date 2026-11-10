@@ -527,10 +527,12 @@ run "default_render_unchanged" {
         hostname = "llama-3-8b-1.internal.sandbox.research.example.com"
         gateway  = { name = "istio-internal", namespace = "istio-system" }
         pool     = "vllm-llama-3-8b-pool"
+        failover = null
       }
       # Fail closed: the owner's own VPC even when Backstage writes no CIDRs.
       access = {
         hostname     = "llama-3-8b-1.internal.sandbox.research.example.com"
+        hostnames    = ["llama-3-8b-1.internal.sandbox.research.example.com"]
         gateway      = { name = "istio-internal", namespace = "istio-system" }
         allowedCidrs = ["10.64.0.0/18"]
         consumerLua  = local.consumer_lua
@@ -934,7 +936,7 @@ run "rate_limit_per_consumer" {
   assert {
     condition = alltrue([
       strcontains(local.consumer_lua, "headers:replace(\"x-phoenix-rl-${local.server}\", who)"),
-      strcontains(local.consumer_lua, "if authority ~= host then headers:remove(\"x-phoenix-rl-${local.server}\") return end"),
+      strcontains(local.consumer_lua, "if not hosts[authority] then headers:remove(\"x-phoenix-rl-${local.server}\") return end"),
     ])
     error_message = "the gateway sets this model's rate-limit key from the caller's CIDR, and strips it from every other host so no one can spend another consumer's allowance"
   }
@@ -983,6 +985,83 @@ run "rate_limit_rejected_with_oidc" {
   override_data {
     target = data.terraform_remote_state.llm_d
     values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "failover_annotations" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.failover.yaml"
+  }
+
+  assert {
+    condition = try(yamldecode(helm_release.server[0].values[0]).route.failover, null) == {
+      hostname      = "llama.internal.sandbox.research.example.com"
+      role          = "PRIMARY"
+      setIdentifier = local.name_prefix
+    }
+    error_message = "the failover hostname gets its own route, a Route 53 failover record named for this cluster"
+  }
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.server[0].values[0]).access.hostnames, []) == [local.hostname, "llama.internal.sandbox.research.example.com"],
+      strcontains(local.consumer_lua, "[\"llama.internal.sandbox.research.example.com\"] = true"),
+      strcontains(local.consumer_lua, "[\"${local.hostname}\"] = true"),
+    ])
+    error_message = "access control (network rule, consumer stamp) covers the failover hostname too, so it is no way around them"
+  }
+}
+
+run "no_failover_by_default" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.server[0].values[0]).route.failover, "missing") == null,
+      try(yamldecode(helm_release.server[0].values[0]).access.hostnames, []) == [local.hostname],
+    ])
+    error_message = "without spec.failover a model has only its cluster's hostname"
+  }
+}
+
+run "failover_rejects_bad_role" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.failover-bad-role.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "failover_hostname_in_gateway_zone" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.failover-outside-zone.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "failover_hostname_one_label" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.failover-two-labels.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "failover_hostname_not_the_clusters_own" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.failover-same-host.yaml"
   }
 
   expect_failures = [terraform_data.validation]

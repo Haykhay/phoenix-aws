@@ -102,6 +102,22 @@ resource "terraform_data" "validation" {
       error_message = "spec.access.oidc needs jwks_uri with issuer."
     }
     precondition {
+      condition     = !local.config.enabled || !local.failover_on || contains(["PRIMARY", "SECONDARY"], try(local.failover.role, ""))
+      error_message = "spec.failover.role must be PRIMARY or SECONDARY (one of each, in two clusters)."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.failover_on || endswith(coalesce(local.failover_hostname, "-"), ".${local.failover_domain}")
+      error_message = "spec.failover.hostname must be in the gateway's zone (${local.failover_domain}): its DNS, listener and certificate cover only that zone."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.failover_on || can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", trimsuffix(coalesce(local.failover_hostname, "-"), ".${local.failover_domain}")))
+      error_message = "spec.failover.hostname must be one label under ${local.failover_domain} (e.g. llama.${local.failover_domain}): the wildcard certificate covers one level."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.failover_on || local.failover_hostname != lower(local.hostname)
+      error_message = "spec.failover.hostname must differ from this cluster's own hostname (${local.hostname}): the clusters share it."
+    }
+    precondition {
       condition     = !local.config.enabled || alltrue([for name, rpm in local.rate_limited : try(rpm > 0 && floor(rpm) == rpm, false)])
       error_message = "spec.access.consumers[*].requests_per_minute must be a whole number of 1 or more (to stop a consumer, remove it from consumers)."
     }
@@ -193,6 +209,7 @@ resource "helm_release" "server" {
     route = {
       hostname = local.hostname
       gateway  = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }
+      failover = local.failover_on ? { hostname = local.failover_hostname, role = try(local.failover.role, ""), setIdentifier = local.name_prefix } : null
       pool     = local.pool_name
     }
     }, concat(

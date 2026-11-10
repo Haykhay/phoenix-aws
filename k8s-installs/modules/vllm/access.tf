@@ -36,10 +36,11 @@ locals {
   rl_on        = length(local.rate_limited) > 0
   rl_header    = "x-phoenix-rl-${local.server}"
 
-  # The gateway runs one of these per model; each acts on its own hostname only.
+  # The gateway runs one of these per model; each acts on its own hostnames only
+  # (the cluster's, and the failover one if any).
   # replace, never add: a client can't name itself.
   consumer_lua = local.access_on && !local.oidc_on ? join("\n", [
-    "local host = \"${lower(local.hostname)}\"",
+    "local hosts = { ${join(", ", [for h in local.hostnames : "[\"${lower(h)}\"] = true"])} }",
     "local nets = {",
     join(",\n", [for i in local.identities : "  { \"${i.name}\", \"${i.cidr}\" }"]),
     "}",
@@ -58,7 +59,7 @@ locals {
       local headers = handle:headers()
       -- Hosts are case-insensitive: MODEL.example.com must not skip the filter.
       local authority = (headers:get(":authority") or ""):gsub(":%d+$", ""):lower()
-      if authority ~= host then${local.rl_on ? " headers:remove(\"${local.rl_header}\")" : ""} return end
+      if not hosts[authority] then${local.rl_on ? " headers:remove(\"${local.rl_header}\")" : ""} return end
       local ip = num((handle:streamInfo():downstreamRemoteAddress() or ""):match("^([%d%.]+)") or "")
       local who = "unknown"
       if ip then
@@ -74,6 +75,7 @@ locals {
 
   access_values = {
     hostname     = local.hostname
+    hostnames    = local.hostnames
     gateway      = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }
     allowedCidrs = local.allowed_cidrs
     consumerLua  = local.consumer_lua
