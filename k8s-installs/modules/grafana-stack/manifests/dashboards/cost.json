@@ -1,0 +1,163 @@
+{
+  "uid": "phoenix-cost",
+  "title": "Cost",
+  "tags": [
+    "phoenix",
+    "cost"
+  ],
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "description": "USD per hour from OpenCost (AWS list prices): CPU, memory and GPU allocation priced per node.",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Cost per namespace",
+      "description": "CPU, memory and GPU allocation cost per namespace, USD per hour.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (namespace) (label_replace(avg by (container, node, namespace, pod) (container_cpu_allocation) * on (node) group_left () avg by (node) (node_cpu_hourly_cost), \"type\", \"cpu\", \"\", \"\") or label_replace(avg by (container, node, namespace, pod) (container_memory_allocation_bytes) / 1073741824 * on (node) group_left () avg by (node) (node_ram_hourly_cost), \"type\", \"ram\", \"\", \"\") or label_replace(avg by (container, node, namespace, pod) (container_gpu_allocation) * on (node) group_left () avg by (node) (node_gpu_hourly_cost), \"type\", \"gpu\", \"\", \"\"))",
+          "legendFormat": "{{namespace}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cost per model",
+      "description": "Allocation cost of each model server in the models namespace, USD per hour. The model is the pod name without its ReplicaSet and pod suffixes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (model) (label_replace(label_replace(avg by (container, node, namespace, pod) (container_cpu_allocation{namespace=\"models\"}) * on (node) group_left () avg by (node) (node_cpu_hourly_cost), \"type\", \"cpu\", \"\", \"\") or label_replace(avg by (container, node, namespace, pod) (container_memory_allocation_bytes{namespace=\"models\"}) / 1073741824 * on (node) group_left () avg by (node) (node_ram_hourly_cost), \"type\", \"ram\", \"\", \"\") or label_replace(avg by (container, node, namespace, pod) (container_gpu_allocation{namespace=\"models\"}) * on (node) group_left () avg by (node) (node_gpu_hourly_cost), \"type\", \"gpu\", \"\", \"\"), \"model\", \"$1\", \"pod\", \"(.+)-[a-z0-9]+-[a-z0-9]+\"))",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Cost per GPU type",
+      "description": "Whole-node cost of GPU and Neuron nodes, per Karpenter node pool (one pool per GPU type), USD per hour.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (nodepool) (avg by (node) (node_total_hourly_cost) * on (node) group_left (nodepool) label_replace(max by (node_name, nodepool) (karpenter_nodes_allocatable{resource_type=~\"nvidia.com/gpu|aws.amazon.com/neuron\"} > 0), \"node\", \"$1\", \"node_name\", \"(.*)\"))",
+          "legendFormat": "{{nodepool}}"
+        }
+      ]
+    }
+  ]
+}

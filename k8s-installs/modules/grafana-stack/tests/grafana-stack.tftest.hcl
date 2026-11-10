@@ -178,6 +178,28 @@ run "model_serving_dashboards" {
   }
 }
 
+# Before model_serving_off: a run that errors makes terraform test skip the rest.
+run "cost_dashboard_provisioned" {
+  command = plan
+
+  assert {
+    condition     = try(jsondecode(yamldecode(helm_release.grafana[0].values[length(helm_release.grafana[0].values) - 1]).dashboards["cost"]["cost"].json).uid, null) == "phoenix-cost"
+    error_message = "the Cost dashboard is provisioned, last so it overrides nothing"
+  }
+  assert {
+    condition = toset([
+      for p in try(jsondecode(yamldecode(helm_release.grafana[0].values[length(helm_release.grafana[0].values) - 1]).dashboards["cost"]["cost"].json).panels, []) : p.title
+    ]) == toset(["Cost per namespace", "Cost per model", "Cost per GPU type"])
+    error_message = "cost per namespace, per model and per GPU type"
+  }
+  assert {
+    condition = alltrue([
+      for p in try(jsondecode(yamldecode(helm_release.grafana[0].values[length(helm_release.grafana[0].values) - 1]).dashboards["cost"]["cost"].json).panels, [{ datasource = { uid = "none" } }]) : p.datasource.uid == "mimir"
+    ])
+    error_message = "every Cost panel queries Mimir"
+  }
+}
+
 run "model_serving_off" {
   command = plan
 
@@ -186,7 +208,15 @@ run "model_serving_off" {
   }
 
   assert {
-    condition     = length(helm_release.grafana[0].values) == 1 && length(helm_release.kube_state_metrics) == 0
+    condition = alltrue([
+      length(helm_release.grafana[0].values) == 2,
+      !contains(keys(try(yamldecode(helm_release.grafana[0].values[1]).dashboards, {})), "model-serving"),
+      length(helm_release.kube_state_metrics) == 0,
+    ])
     error_message = "spec.model_serving: false provisions no model-serving dashboards, alerts or kube-state-metrics"
+  }
+  assert {
+    condition     = contains(keys(try(yamldecode(helm_release.grafana[0].values[1]).dashboards, {})), "cost")
+    error_message = "the Cost dashboard does not depend on model serving"
   }
 }
