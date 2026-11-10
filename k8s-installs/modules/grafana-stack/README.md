@@ -83,8 +83,9 @@ the management cluster's Mimir over HTTPS, labelled `cluster`, `env_id`,
 series leave the cluster. The write credential (`username`, `password`) comes
 from Secrets Manager under the environment's prefix (default
 `<organisation>/<env_id>/global-metrics`, ADR-0007) through an ExternalSecret
-into Alloy's environment, never its config. A URL that isn't `https://` fails
-the plan.
+into Alloy's environment, never its config. The secret is optional to Alloy:
+until it syncs, Alloy still starts and only the global writes fail. A URL that
+isn't `https://` fails the plan.
 
 **Receiving** (`global_receiver`, the management cluster): an nginx (the image
 Mimir's own gateway runs) checks the password file (`htpasswd` from the same
@@ -155,7 +156,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/grafana-stack.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`, `global_write_off_by_default`, `global_write_allowlist`, `global_write_requires_https`, `receiver_is_internal_only`, `receiver_requires_auth`, `global_cost_dashboard`, `receiver_needs_internal_gateway`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`, `global_write_off_by_default`, `global_write_allowlist`, `global_write_requires_https`, `receiver_is_internal_only`, `receiver_requires_auth`, `global_cost_dashboard`, `receiver_needs_internal_gateway`, `missing_global_credential_keeps_alloy_running`).
 
 ### Outputs
 

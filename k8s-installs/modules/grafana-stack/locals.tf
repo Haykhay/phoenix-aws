@@ -131,11 +131,13 @@ locals {
   })
 
   # Alloy reads the write credential from its environment, never its config.
+  # optional: until the secret syncs, Alloy still starts (it also carries the
+  # cluster's own metrics, logs and traces); only the global writes fail.
   global_env_values = yamlencode({
     alloy = {
       extraEnv = [for k in ["username", "password"] : {
         name      = "GLOBAL_METRICS_${upper(k)}"
-        valueFrom = { secretKeyRef = { name = "global-metrics", key = k } }
+        valueFrom = { secretKeyRef = { name = "global-metrics", key = k, optional = true } }
       }]
     }
   })

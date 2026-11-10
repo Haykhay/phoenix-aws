@@ -356,3 +356,18 @@ run "receiver_needs_internal_gateway" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "missing_global_credential_keeps_alloy_running" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-send.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      for e in try(yamldecode(helm_release.alloy[0].values[1]).alloy.extraEnv, [{ valueFrom = { secretKeyRef = { optional = false } } }]) : try(e.valueFrom.secretKeyRef.optional, false) == true
+    ])
+    error_message = "a missing or unsynced global-metrics secret must not stop Alloy: it also carries the cluster's own metrics, logs and traces"
+  }
+}
