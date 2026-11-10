@@ -14,6 +14,7 @@ with the platform's values from the `phoenix-gpu` catalog entity.
 | `capacity_reservations` | `[]` | ODCRs or Capacity Blocks you hold: `[{ id: cr-… }]` or `[{ tags: { … } }]`; used first |
 | `accelerator` | `nvidia` | or `neuron`: Trainium/Inferentia families (`trn1`, `trn2`, `inf2`); `gpu_count_max` and `gpu_limit` then count Neuron devices |
 | `efa` | `false` | EFA networking for multi-node serving; EFA-capable families only (`p4d`, `p4de`, `p5`, `p5e`, `p5en`, `p6-b200`, `p6e-gb200`) |
+| `time_slice_replicas` | `0` | NVIDIA only: share each GPU this many ways, a profile `nvidia-gpu-operator` renders (`2` or `4`). Nodes get `nvidia.com/device-plugin.config=ts-<n>`; `vllm` must then set `gpu_memory_utilization`. Karpenter sizes nodes by physical GPUs, so models arriving together may briefly get a node each before consolidation packs them |
 | `volume_size` | `200Gi` | model images and weights are large |
 | `ami_alias` | `al2023@latest` | Karpenter picks the NVIDIA variant for GPU instances |
 
@@ -123,7 +124,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/karpenter-nodepool.<gpu-type>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`gpu_pool_from_instance`, `two_gpu_types_do_not_collide`, `families_required`, `disabled_plans_nothing`, `on_demand_by_default`, `reservations_used_first`, `reserved_only`, `no_capacity_rejected`, `efa_pool`, `efa_needs_capable_family`, `nvidia_by_default`, `neuron_pool`, `unknown_accelerator_rejected`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`gpu_pool_from_instance`, `two_gpu_types_do_not_collide`, `families_required`, `disabled_plans_nothing`, `on_demand_by_default`, `reservations_used_first`, `reserved_only`, `no_capacity_rejected`, `efa_pool`, `efa_needs_capable_family`, `nvidia_by_default`, `neuron_pool`, `unknown_accelerator_rejected`, `time_slice_labels_nodes`, `no_time_slicing_by_default`, `time_slice_rejected_on_neuron`, `time_slice_needs_a_profile`).
 
 ### Outputs
 
@@ -133,6 +134,7 @@ Tests, no AWS needed: `terraform init -backend=false && terraform test` (`gpu_po
 | `node_selector` | What a workload sets to land on this pool (plus a toleration for its accelerator's taint). |
 | `accelerator` | nvidia or neuron: what the pool's devices are; vllm's spec.hardware must match. |
 | `efa` | Whether the pool's nodes have EFA (label phoenix/efa=true): multi-node serving needs it. |
+| `time_slice_replicas` | How many ways each GPU is shared (0 = whole GPUs); vllm needs `gpu_memory_utilization` when > 0. |
 | `capacity_reservations` | Reservations or Capacity Blocks the pool uses first ([] = on-demand only). |
 
 Plus `resource_summary`, for the pipeline's summary.

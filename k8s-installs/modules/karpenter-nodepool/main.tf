@@ -33,6 +33,14 @@ resource "terraform_data" "validation" {
       condition     = !local.config.enabled || !local.config.efa || length(setsubtract(local.config.instance_families, local.efa_families)) == 0
       error_message = "efa: true needs EFA-capable GPU families (${join(", ", local.efa_families)}); got ${join(", ", local.config.instance_families)}."
     }
+    precondition {
+      condition     = !local.config.enabled || local.config.time_slice_replicas == 0 || local.config.accelerator == "nvidia"
+      error_message = "spec.time_slice_replicas is for NVIDIA pools only: Neuron devices aren't time-sliced."
+    }
+    precondition {
+      condition     = !local.config.enabled || local.config.time_slice_replicas == 0 || contains(local.time_slice_profiles, local.config.time_slice_replicas)
+      error_message = "spec.time_slice_replicas must be 0 or a profile nvidia-gpu-operator renders (${join(", ", local.time_slice_profiles)}); got ${local.config.time_slice_replicas}."
+    }
   }
 }
 
@@ -43,16 +51,17 @@ resource "helm_release" "this" {
   namespace = try(local.karpenter.namespace, "karpenter")
 
   values = [yamlencode({
-    name             = local.pool_name
-    gpuType          = local.gpu_type
-    instanceFamilies = local.config.instance_families
-    gpuCountMax      = local.config.gpu_count_max
-    gpuLimit         = local.gpu_limit
-    capacityTypes    = local.capacity_types
-    efa              = local.config.efa
-    accelerator      = local.accelerator
-    expireAfter      = local.config.expire_after
-    consolidateAfter = local.config.consolidate_after
+    name              = local.pool_name
+    gpuType           = local.gpu_type
+    instanceFamilies  = local.config.instance_families
+    gpuCountMax       = local.config.gpu_count_max
+    gpuLimit          = local.gpu_limit
+    capacityTypes     = local.capacity_types
+    efa               = local.config.efa
+    accelerator       = local.accelerator
+    expireAfter       = local.config.expire_after
+    consolidateAfter  = local.config.consolidate_after
+    timeSliceReplicas = local.config.time_slice_replicas
     nodeClass = {
       role                 = try(local.karpenter.node_role_name, "karpenter-missing")
       subnetIds            = module.cluster.node_subnet_ids

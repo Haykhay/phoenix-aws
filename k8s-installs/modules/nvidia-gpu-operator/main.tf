@@ -15,7 +15,7 @@ resource "helm_release" "this" {
   values = [yamlencode({
     driver       = { enabled = false }
     toolkit      = { enabled = false }
-    devicePlugin = { enabled = true }
+    devicePlugin = merge({ enabled = true }, local.device_plugin_config == null ? {} : { config = local.device_plugin_config })
     dcgmExporter = {
       enabled = true
       # grafana-stack's Alloy scrapes pods that ask for it.

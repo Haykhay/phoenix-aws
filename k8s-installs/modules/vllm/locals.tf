@@ -32,9 +32,12 @@ locals {
     disagg_sidecar_tag = "v0.11.0"                                # llm-d-router-disagg-sidecar, same release
     efa_image_tag      = "0.30.0-gpu-py312-cu130-ubuntu24.04-ec2" # AWS vLLM DLC with EFA, llm-d v0.10.0's aws-efa image
     max_model_len      = null
-    extra_args         = []
-    image_tag          = "v0.31.0"
-    hardware           = "nvidia" # or neuron: must match the pool's accelerator
+    # Share of the GPU's memory vLLM may take (0-1]. Required on a time-sliced
+    # pool, at most 1 / its time_slice_replicas; Backstage writes 0.9 / replicas.
+    gpu_memory_utilization = null
+    extra_args             = []
+    image_tag              = "v0.31.0"
+    hardware               = "nvidia" # or neuron: must match the pool's accelerator
     # Neuron: tensor parallelism counts NeuronCores, not devices.
     tensor_parallel_size = null                                               # default: gpus_per_replica
     neuron_image_tag     = "0.24.0.1.1.0-neuronx-py313-sdk2.32.0-ubuntu24.04" # 2026-08-18, Neuron SDK 2.32
@@ -74,6 +77,9 @@ locals {
   cache_path       = try(local.weights.cache_path, null) == null ? "" : local.weights.cache_path
   fsx              = try(data.terraform_remote_state.fsx.outputs, {})
   pool_accelerator = try(data.terraform_remote_state.gpu_pool.outputs.accelerator, "nvidia")
+  # > 0: the pool shares each GPU this many ways (karpenter-nodepool time_slice_replicas).
+  pool_time_slice = try(data.terraform_remote_state.gpu_pool.outputs.time_slice_replicas, 0)
+  memory_args     = local.config.gpu_memory_utilization == null ? [] : ["--gpu-memory-utilization=${local.config.gpu_memory_utilization}"]
   hardware = {
     nvidia = {
       image       = { repository = "vllm/vllm-openai", tag = local.config.image_tag }

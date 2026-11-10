@@ -280,3 +280,45 @@ run "gpu_limit_below_one_node_rejected" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "time_slice_labels_nodes" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.l4-shared.yaml"
+  }
+
+  assert {
+    condition     = try(yamldecode(helm_release.this[0].values[0]).timeSliceReplicas, null) == 4 && output.time_slice_replicas == 4
+    error_message = "a time-sliced pool labels its nodes for the ts-4 device-plugin profile and tells vllm"
+  }
+}
+
+run "no_time_slicing_by_default" {
+  command = plan
+
+  assert {
+    condition     = try(yamldecode(helm_release.this[0].values[0]).timeSliceReplicas, null) == 0 && output.time_slice_replicas == 0
+    error_message = "pools share nothing unless asked"
+  }
+}
+
+run "time_slice_rejected_on_neuron" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.trn2-shared.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "time_slice_needs_a_profile" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/karpenter-nodepool.l4-three.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}

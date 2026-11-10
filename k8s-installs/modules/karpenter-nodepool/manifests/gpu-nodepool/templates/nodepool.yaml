@@ -11,6 +11,10 @@ spec:
         {{- if .Values.efa }}
         phoenix/efa: "true"
         {{- end }}
+        {{- if .Values.timeSliceReplicas }}
+        # nvidia-gpu-operator's device plugin shares each GPU this many ways.
+        nvidia.com/device-plugin.config: {{ printf "ts-%v" .Values.timeSliceReplicas | quote }}
+        {{- end }}
     spec:
       nodeClassRef:
         group: karpenter.k8s.aws
