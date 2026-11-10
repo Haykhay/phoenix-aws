@@ -74,6 +74,29 @@ fed by the `opencost` component's metrics:
 |---|---|---|
 | Cost | `phoenix-cost` | USD per hour from AWS list prices: per namespace (CPU, memory and GPU allocation), per model in `models` (pod name without its ReplicaSet and pod suffixes), and per GPU type (whole GPU and Neuron node cost per Karpenter node pool) |
 
+## Global metrics (ADR-0011)
+
+**Sending** (`global_metrics`): Alloy writes a second copy of a few series to
+the management cluster's Mimir over HTTPS, labelled `cluster`, `env_id`,
+`tier` and `cloud`. Only `DCGM_FI_DEV_GPU_UTIL`, `llm_d_epp_request_running`,
+`istio_requests_total`, `karpenter_nodes_allocatable` and OpenCost's cost
+series leave the cluster. The write credential (`username`, `password`) comes
+from Secrets Manager under the environment's prefix (default
+`<organisation>/<env_id>/global-metrics`, ADR-0007) through an ExternalSecret
+into Alloy's environment, never its config. A URL that isn't `https://` fails
+the plan.
+
+**Receiving** (`global_receiver`, the management cluster): an nginx (the image
+Mimir's own gateway runs) checks the password file (`htpasswd` from the same
+secret name under its own prefix) and forwards `POST /api/v1/push`, and nothing
+else, to Mimir. It is reachable only as `metrics-<cluster>.<internal zone>` on
+istio's internal gateway, whose wildcard certificate gives it TLS; external-dns
+writes the record. Mimir's own gateway stays unauthenticated inside the
+cluster, so local writes and queries are unchanged. Grafana gets a **Global**
+folder: `Global cost` (`phoenix-global-cost`), cost per cloud, cluster,
+namespace, model and GPU type. Needs istio on this cluster: the plan fails
+without its internal gateway.
+
 ## Spec
 
 | `spec` | Default | |
@@ -81,6 +104,8 @@ fed by the `opencost` component's metrics:
 | `observability_environment` | `shared` | the group environment holding the observability unit |
 | `chart_versions` | as above | platform-pinned, per release |
 | `model_serving` | `true` | model-serving dashboards, alerts and kube-state-metrics (below) |
+| `global_metrics` | none | `{ remote_write_url, credentials_secret }`: also send the allowlisted series to the management cluster (below) |
+| `global_receiver` | `false` | this is the management cluster: receive them and show them globally (below) |
 | `enabled` | `true` | |
 
 The plan fails clearly if the group's observability unit has not been applied.
@@ -130,7 +155,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/grafana-stack.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`, `global_write_off_by_default`, `global_write_allowlist`, `global_write_requires_https`, `receiver_is_internal_only`, `receiver_requires_auth`, `global_cost_dashboard`, `receiver_needs_internal_gateway`).
 
 ### Outputs
 

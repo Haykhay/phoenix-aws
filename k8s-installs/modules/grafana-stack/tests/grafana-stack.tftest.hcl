@@ -48,6 +48,19 @@ override_data {
   }
 }
 
+# Only global_receiver reads it: the internal gateway its HTTPRoute attaches to.
+override_data {
+  target = data.terraform_remote_state.istio
+  values = {
+    outputs = {
+      gateways = {
+        internal = { name = "istio-internal", namespace = "istio-system", domain = "internal.sandbox.research.example.com" }
+        external = null
+      }
+    }
+  }
+}
+
 override_data {
   target = data.terraform_remote_state.observability
   values = {
@@ -219,4 +232,127 @@ run "model_serving_off" {
     condition     = contains(keys(try(yamldecode(helm_release.grafana[0].values[1]).dashboards, {})), "cost")
     error_message = "the Cost dashboard does not depend on model serving"
   }
+}
+
+run "global_write_off_by_default" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      !strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "prometheus.remote_write \"global\""),
+      length(helm_release.global_metrics) == 0,
+    ])
+    error_message = "without spec.global_metrics a cluster's metrics stay in its own Mimir"
+  }
+}
+
+run "global_write_allowlist" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-send.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "url = \"https://metrics-1.internal.prod.platform.example.com/api/v1/push\""),
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "regex         = \"${join("|", local.global_allowlist)}\""),
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "forward_to = [prometheus.remote_write.mimir.receiver, prometheus.remote_write.global.receiver]"),
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "cloud   = \"aws\""),
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "env_id  = \"research-sandbox\""),
+      strcontains(yamldecode(helm_release.alloy[0].values[0]).alloy.configMap.content, "tier    = \"sandbox\""),
+    ])
+    error_message = "a sending cluster forwards only the allowlisted series to the management cluster over HTTPS, labelled with its cluster, environment, tier and cloud"
+  }
+  assert {
+    condition = toset(local.global_allowlist) == toset([
+      "DCGM_FI_DEV_GPU_UTIL", "llm_d_epp_request_running", "istio_requests_total", "karpenter_nodes_allocatable",
+      "node_total_hourly_cost", "node_cpu_hourly_cost", "node_ram_hourly_cost", "node_gpu_hourly_cost",
+      "container_cpu_allocation", "container_memory_allocation_bytes", "container_gpu_allocation",
+    ])
+    error_message = "the allowlist: GPU use, inference load, gateway traffic, node pools and OpenCost's cost series"
+  }
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.global_metrics[0].values[0]).send.secretName, "") == "acme/research-sandbox/global-metrics",
+      try(yamldecode(helm_release.global_metrics[0].values[0]).receive, "missing") == null,
+      contains([for e in try(yamldecode(helm_release.alloy[0].values[1]).alloy.extraEnv, []) : e.valueFrom.secretKeyRef.key if e.name == "GLOBAL_METRICS_PASSWORD"], "password"),
+    ])
+    error_message = "the write credential comes from the environment's own secrets prefix (ADR-0007) into Alloy's environment, never into the config"
+  }
+}
+
+run "global_write_requires_https" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-send-http.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "receiver_is_internal_only" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-receiver.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.global_metrics[0].values[0]).receive.gateway, null) == { name = "istio-internal", namespace = "istio-system" },
+      try(yamldecode(helm_release.global_metrics[0].values[0]).receive.hostname, "") == "metrics-1.internal.sandbox.research.example.com",
+    ])
+    error_message = "the receiver is reachable only on the internal gateway, by a name its wildcard certificate covers (TLS)"
+  }
+}
+
+run "receiver_requires_auth" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-receiver.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.global_metrics[0].values[0]).receive.secretName, "") == "acme/research-sandbox/global-metrics",
+      try(yamldecode(helm_release.global_metrics[0].values[0]).receive.upstream, "") == "http://mimir-gateway.monitoring.svc",
+    ])
+    error_message = "writes reach Mimir only through the authenticating proxy, its password file from the environment's secrets prefix"
+  }
+}
+
+run "global_cost_dashboard" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-receiver.yaml"
+  }
+
+  assert {
+    condition = alltrue([
+      try(jsondecode(yamldecode(helm_release.grafana[0].values[length(helm_release.grafana[0].values) - 1]).dashboards["global"]["global-cost"].json).uid, "") == "phoenix-global-cost",
+      toset([for p in try(jsondecode(yamldecode(helm_release.grafana[0].values[length(helm_release.grafana[0].values) - 1]).dashboards["global"]["global-cost"].json).panels, []) : p.title]) == toset([
+        "Cost per cloud", "Cost per cluster", "Cost per namespace", "Cost per model", "Cost per GPU type",
+      ]),
+    ])
+    error_message = "the management cluster's Grafana shows cost across clouds and clusters"
+  }
+}
+
+run "receiver_needs_internal_gateway" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/global-receiver.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.istio
+    values = { outputs = {} }
+  }
+
+  expect_failures = [terraform_data.validation]
 }

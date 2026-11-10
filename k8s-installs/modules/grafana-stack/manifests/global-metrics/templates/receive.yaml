@@ -1,0 +1,105 @@
+{{- with .Values.receive }}
+# The management cluster's door for other clusters' series: TLS on the
+# internal gateway, then this nginx checks the password file and forwards
+# remote writes (and nothing else) to Mimir.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: global-metrics-htpasswd
+  namespace: {{ $.Release.Namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+  target:
+    name: global-metrics-htpasswd
+  data:
+    - secretKey: .htpasswd
+      remoteRef: { key: {{ .secretName | quote }}, property: htpasswd }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-metrics-receiver
+  namespace: {{ $.Release.Namespace }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location = /api/v1/push {
+        auth_basic           "Phoenix global metrics";
+        auth_basic_user_file /etc/nginx/secrets/.htpasswd;
+        client_max_body_size 32m;
+        proxy_pass           {{ .upstream }}/api/v1/push;
+      }
+      location = /healthz {
+        access_log off;
+        return 200;
+      }
+      location / {
+        return 404;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: global-metrics-receiver
+  namespace: {{ $.Release.Namespace }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: global-metrics-receiver }
+  template:
+    metadata:
+      labels: { app: global-metrics-receiver }
+    spec:
+      securityContext: { runAsNonRoot: true }
+      containers:
+        - name: nginx
+          image: {{ .image }}
+          ports: [{ name: http, containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          volumeMounts:
+            - { name: config, mountPath: /etc/nginx/conf.d }
+            - { name: htpasswd, mountPath: /etc/nginx/secrets, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: config, configMap: { name: global-metrics-receiver } }
+        - { name: htpasswd, secret: { secretName: global-metrics-htpasswd } }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-metrics-receiver
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector: { app: global-metrics-receiver }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: global-metrics
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .hostname | quote }}
+spec:
+  parentRefs:
+    - name: {{ .gateway.name }}
+      namespace: {{ .gateway.namespace }}
+  hostnames: [{{ .hostname | quote }}]
+  rules:
+    - matches: [{ path: { type: Exact, value: /api/v1/push } }]
+      backendRefs: [{ name: global-metrics-receiver, port: 8080 }]
+{{- end }}
