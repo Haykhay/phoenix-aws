@@ -13,6 +13,7 @@ catalog entity.
 | `replicas` | `1` | |
 | `gpus_per_replica` | `1` | tensor parallelism |
 | `max_model_len`, `extra_args` | none | passed to vLLM |
+| `gpu_memory_utilization` | none | vLLM's share of the GPU's memory (0-1]. Required on a time-sliced pool (`karpenter-nodepool` `time_slice_replicas` > 0), at most 1 / its shares, with `gpus_per_replica` and `nodes_per_replica` 1; Backstage writes 0.9 / shares |
 | `image_tag` | `v0.31.0` | `vllm/vllm-openai`, pinned |
 | `hardware` | `nvidia` | or `neuron` (Trainium/Inferentia): must match the pool's `accelerator`, or the plan fails |
 | `tensor_parallel_size` | `gpus_per_replica` | on Neuron, NeuronCores (devices × cores per device) |
@@ -52,8 +53,20 @@ Output `llm_d_options` lists what is on.
   piling onto saturated replicas.
 - **`autoscaling`**: a KEDA ScaledObject on the router's running-request count
   in Mimir (`autoscale_target` per replica, default `16`), between
-  `max(1, min_replicas)` and `max_replicas` (default `4`); never to zero. A
+  `max(1, min_replicas)` and `max_replicas` (default `4`); never to zero unless `scale_to_zero`. A
   5-minute stabilisation window covers model start. Needs the llm-d unit's KEDA.
+- **`scale_to_zero`** (with `autoscaling`; `sandbox` and `uat` only): the
+  ScaledObject's minimum becomes 0. After 30 minutes without requests
+  (`cooldownPeriod` 1800) the model scales to zero and Karpenter removes its
+  GPU node. A second trigger wakes it: requests for its hostname at the
+  gateway (`istio_requests_total` by `request_host`; override with
+  `wake_query`), since the router's count is empty at zero. While it wakes
+  (a new GPU node plus loading the model: minutes) callers get 503 and retry.
+  Not with `multi_node` or `pd_disaggregation`. Pods carry
+  `phoenix/scale-to-zero=true`, so grafana-stack's `AcceleratorIdle` skips
+  them. Every apply starts it at one replica again; it returns to zero 30
+  idle minutes later.
+
 - **`multi_node`**: each replica is a LeaderWorkerSet group of
   `nodes_per_replica` nodes, `gpus_per_replica` each: tensor parallel inside a
   node, pipeline parallel across nodes. Workers run `--headless`.
@@ -138,6 +151,34 @@ access:
   consumer without CIDRs fails the plan. A model is never open to the whole
   segment.
 
+### Failover between clusters
+
+`spec.failover` gives the model a hostname it shares with the same model on
+another cluster of the environment (another region), with Route 53 failover
+between them:
+
+```yaml
+failover:
+  hostname: llama.internal.sandbox.research.example.com  # one label under the gateway's zone
+  role: PRIMARY                                          # the other cluster: SECONDARY
+```
+
+It gets its own HTTPRoute, so the failover annotations never touch the
+cluster's own hostname: external-dns writes one failover record per cluster
+(set identifier = the cluster's name prefix), an alias to that cluster's
+gateway NLB with `aws-evaluate-target-health`. Route 53 answers with the
+PRIMARY while its NLB has healthy targets, else the SECONDARY. The network
+rule, the consumer stamp and the rate limits cover the failover hostname
+exactly as the cluster's own, so it is no way around them.
+
+What it covers: losing the primary's gateway, cluster or region. What it
+doesn't: a model down inside a healthy cluster (the gateway still answers,
+with 503). The plan fails for a role other than PRIMARY or SECONDARY, a
+hostname outside the gateway's zone or more than one label under it (its
+listener and wildcard certificate cover one level), and the cluster's own
+hostname. Backstage writes it from the workload form's optional **Failover
+hostname** and **Failover role**; request the model on both clusters.
+
 **Segment note.** sandbox, stage and uat share the non-production transit
 gateway segment (prod is isolated), so a sandbox or stage VPC can route to a
 uat model: the AuthorizationPolicy, not routing, is what keeps them off it.
@@ -211,7 +252,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/vllm.<model>.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `invalid_combinations_rejected_*` (four), `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`, `default_render_unchanged`, `option_routing`, `option_kv_offload`, `option_flow_control`, `option_autoscaling`, `option_multi_node`, `option_wide_ep_single_node`, `option_pd_with_kv_offload`, `wide_ep_600b_fixture`, `uat_allows_only_owner_and_consumers`, `shared_allows_consumers`, `consumer_header_overwritten`, `consumers_only_uat_prod`, `shared_forces_flow_control`, `oidc_option`, `rate_limit_per_consumer`, `no_limit_by_default`, `rate_limit_must_be_positive`, `rate_limit_rejected_with_oidc`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `routes_through_inference_pool`, `two_models_do_not_collide`, `missing_gpu_pool_rejected`, `missing_istio_rejected`, `version_required`, `disabled_plans_nothing`, `served_name_overrides`, `startup_budget_scales_with_size`, `version_mismatch_rejected`, `missing_weights_rejected`, `missing_cache_rejected`, `prepull_on_model_pool`, `neuron_model`, `hardware_pool_mismatch_rejected`, `nvidia_by_default`, `no_options_needs_no_llm_d`, `routing_allowed`, `llm_d_not_installed_rejected`, `multi_node_needs_two_nodes`, `multi_node_on_efa_pool_allowed`, `default_render_unchanged`, `option_routing`, `option_kv_offload`, `option_flow_control`, `option_autoscaling`, `option_multi_node`, `option_wide_ep_single_node`, `option_pd_with_kv_offload`, `wide_ep_600b_fixture`, `uat_allows_only_owner_and_consumers`, `shared_allows_consumers`, `consumer_header_overwritten`, `consumers_only_uat_prod`, `shared_forces_flow_control`, `oidc_option`, `rate_limit_per_consumer`, `no_limit_by_default`, `rate_limit_must_be_positive`, `rate_limit_rejected_with_oidc`, `failover_annotations`, `no_failover_by_default`, `failover_rejects_bad_role`, `failover_hostname_in_gateway_zone`, `failover_hostname_one_label`, `failover_hostname_not_the_clusters_own`, `shared_gpu_sets_memory_fraction`, `shared_gpu_fraction_on_llm_d_path`, `shared_gpu_requires_memory_fraction`, `shared_gpu_fraction_must_fit`, `shared_gpu_one_device_per_replica`, `memory_fraction_out_of_range_rejected`, `option_scale_to_zero`, `autoscale_without_zero_stays_at_one`, `zero_allowed_on_uat`, `zero_rejected_on_prod`, `zero_requires_autoscaling`, `zero_rejected_multi_node`).
 
 ### Outputs
 

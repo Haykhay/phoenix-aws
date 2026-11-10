@@ -56,6 +56,10 @@ spec:
     name: {{ .target }}
   minReplicaCount: {{ .minReplicas }}
   maxReplicaCount: {{ .maxReplicas }}
+  {{- with .cooldownSeconds }}
+  # scale_to_zero: down to 0 after this long without requests.
+  cooldownPeriod: {{ . }}
+  {{- end }}
   # A new replica takes minutes to load: wait before adding or removing another.
   advanced:
     horizontalPodAutoscalerConfig:
@@ -69,5 +73,17 @@ spec:
         serverAddress: {{ .serverAddress }}
         query: {{ .query | quote }}
         threshold: {{ .threshold | quote }}
+    {{- with .wake }}
+    # Wakes the model from zero: requests for its host at the gateway. The
+    # caller gets 503 until a replica is ready and retries. Only activates:
+    # the threshold is set never to add replicas beyond the first.
+    - type: prometheus
+      metricType: AverageValue
+      metadata:
+        serverAddress: {{ $.Values.llmD.autoscaling.serverAddress }}
+        query: {{ .query | quote }}
+        threshold: "1000000"
+        activationThreshold: {{ .activationThreshold | quote }}
+    {{- end }}
 {{- end }}
 {{- end }}

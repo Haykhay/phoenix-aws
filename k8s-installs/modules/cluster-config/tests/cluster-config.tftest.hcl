@@ -84,7 +84,31 @@ run "disabled_plans_nothing" {
   }
 
   assert {
-    condition     = length(helm_release.this) == 0
+    condition     = length(helm_release.this) == 0 && length(kubernetes_storage_class_v1.block) == 0
     error_message = "spec.enabled: false installs nothing"
+  }
+}
+
+run "block_class_is_encrypted_gp3" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      try(kubernetes_storage_class_v1.block[0].metadata[0].name, "") == "phoenix-block",
+      try(kubernetes_storage_class_v1.block[0].storage_provisioner, "") == "ebs.csi.aws.com",
+      try(kubernetes_storage_class_v1.block[0].parameters.type, "") == "gp3",
+      try(kubernetes_storage_class_v1.block[0].parameters.encrypted, "") == "true",
+      try(kubernetes_storage_class_v1.block[0].volume_binding_mode, "") == "WaitForFirstConsumer",
+      try(kubernetes_storage_class_v1.block[0].allow_volume_expansion, false) == true,
+    ])
+    error_message = "phoenix-block is encrypted gp3 EBS, bound where the pod lands, expandable"
+  }
+  assert {
+    condition = alltrue([
+      !contains(keys(coalesce(try(kubernetes_storage_class_v1.block[0].metadata[0].annotations, null), {})), "storageclass.kubernetes.io/is-default-class"),
+      contains(values(try(kubernetes_storage_class_v1.block[0].parameters, {})), "Project=Phoenix"),
+      contains(values(try(kubernetes_storage_class_v1.block[0].parameters, {})), "Cluster=1"),
+    ])
+    error_message = "phoenix-block is not the default class (gp3 stays default) and tags volumes like gp3"
   }
 }

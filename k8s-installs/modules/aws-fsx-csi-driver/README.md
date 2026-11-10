@@ -1,7 +1,8 @@
 # aws-fsx-csi-driver
 
-The FSx for Lustre CSI driver, plus one static read-only volume on the
-cluster's model cache (infrastructure's `model-cache.<cluster>`). vLLM pods
+The FSx for Lustre CSI driver, the platform's `phoenix-shared` StorageClass,
+and, when the cluster has a model cache (infrastructure's
+`model-cache.<cluster>`), one static read-only volume on it. vLLM pods
 mount claim `model-cache` in namespace `models` with subPath `weights` at
 `/models`, so a model's weights are at `/models/<model>/<version>/`.
 
@@ -10,10 +11,15 @@ mount claim `model-cache` in namespace `models` with subPath `weights` at
 | `aws-fsx-csi-driver` chart `1.18.0` (driver v1.10.0) | `kube-system`; the node daemonset tolerates every taint, so it runs on GPU (`nvidia.com/gpu`) and Neuron (`aws.amazon.com/neuron`) nodes |
 | PersistentVolume `model-cache-models` | static, `ReadOnlyMany`, `readOnly`, `Retain`: the file system belongs to `model-cache`, never to this claim |
 | PersistentVolumeClaim `model-cache` | in `models`, bound to that volume |
+| StorageClass `phoenix-shared` | the cloud-neutral name for a file system many pods share: one FSx for Lustre file system per claim (`PERSISTENT_2`, 125 MB/s per TiB, in the first node subnet), tagged `PhoenixCluster=<cluster>`, deleted with its claim. Sizes: 1200 GiB, then steps of 2400 GiB |
+| IAM role `<prefix>-fsx-csi` (Pod Identity, `fsx-csi-controller-sa`) | the driver's documented minimum, scoped: create file systems only tagged with this cluster, change or delete only those |
+| Security group `<prefix>-fsx-shared` | on the `phoenix-shared` file systems: Lustre (988, 1018-1023) from the nodes and from itself |
 
-No IAM: with a static volume the controller never calls AWS. Nodes need no
-Lustre package: the driver's node image carries the Lustre client and loads its
-kernel module.
+Without a model cache (a cluster that serves no models) it installs the driver
+and `phoenix-shared` only; `vllm` itself refuses to start without the cache.
+Nodes need no Lustre package: the driver's node image carries the Lustre
+client and loads its kernel module. Ask for `phoenix-shared` through the
+`volume` component.
 
 | `spec` | Default | |
 |---|---|---|
@@ -26,7 +32,7 @@ kernel module.
 **Infrastructure units**, applied first:
 
 - `core-platform` for the environment and region: the cluster this unit targets (the plan fails without it)
-- `model-cache.<cluster>`: the file system (the plan fails without it)
+- `model-cache.<cluster>`, if the cluster serves models: the cache's file system
 
 **Cluster components:** none.
 
@@ -57,7 +63,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/aws-fsx-csi-driver.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `volume_comes_from_state`, `missing_model_cache_rejected`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `volume_comes_from_state`, `no_model_cache_installs_driver_only`, `shared_class_uses_fsx`, `driver_role_scoped_to_cluster`, `lustre_ports_from_nodes`, `disabled_plans_nothing`).
 
 ### Outputs
 
@@ -71,4 +77,4 @@ Plus `resource_summary`, for the pipeline's summary.
 
 ### Removing it
 
-Used by: vllm (every model on the cluster mounts the claim). Destroy those first. Removing it never touches the file system or the weights.
+Used by: vllm (every model on the cluster mounts the claim) and every `volume` on `phoenix-shared`. Destroy those first: a `phoenix-shared` claim's file system is deleted with the claim. Removing it never touches the model cache's file system or the weights.

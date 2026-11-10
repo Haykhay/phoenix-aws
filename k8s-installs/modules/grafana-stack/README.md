@@ -61,7 +61,7 @@ the cluster), one per anti-goal:
 | Alert | Fires when |
 |---|---|
 | `ModelStartSlow` | a model pod has been created but not Ready for over 1800 s |
-| `AcceleratorIdle` | a model's GPUs (DCGM) or a node's NeuronCores average under 5% for 30 minutes |
+| `AcceleratorIdle` | a model's GPUs (DCGM) or a node's NeuronCores average under 5% for 30 minutes; `scale_to_zero` models are skipped (pod label `phoenix/scale-to-zero`, exported by kube-state-metrics): idle is how they reach zero |
 | `ModelPendingCapacity` | a model pod has been unschedulable for over 15 minutes: Karpenter couldn't get the capacity (see karpenter-nodepool's "What you can achieve") |
 
 Updating llm-d's dashboards: copy the new release's files over
@@ -156,7 +156,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/grafana-stack.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`, `global_write_off_by_default`, `global_write_allowlist`, `global_write_requires_https`, `receiver_is_internal_only`, `receiver_requires_auth`, `global_cost_dashboard`, `receiver_needs_internal_gateway`, `missing_global_credential_keeps_alloy_running`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`, `global_write_off_by_default`, `global_write_allowlist`, `global_write_requires_https`, `receiver_is_internal_only`, `receiver_requires_auth`, `global_cost_dashboard`, `receiver_needs_internal_gateway`, `missing_global_credential_keeps_alloy_running`, `scale_to_zero_models_not_idle`).
 
 ### Outputs
 

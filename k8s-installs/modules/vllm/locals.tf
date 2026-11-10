@@ -13,7 +13,8 @@ locals {
       routing           = false # prefix-cache, load and session aware scheduling
       kv_offload        = false # tiered KV cache (CPU, then local disk)
       flow_control      = false # multi-tenant QoS
-      autoscaling       = false # SLO-aware; never to zero
+      autoscaling       = false # SLO-aware; never to zero unless scale_to_zero
+      scale_to_zero     = false # with autoscaling: 0 replicas after 30 idle minutes; sandbox and uat only
       batch             = false
       multi_node        = false # LeaderWorkerSet; nodes_per_replica >= 2
       pd_disaggregation = false
@@ -32,9 +33,15 @@ locals {
     disagg_sidecar_tag = "v0.11.0"                                # llm-d-router-disagg-sidecar, same release
     efa_image_tag      = "0.30.0-gpu-py312-cu130-ubuntu24.04-ec2" # AWS vLLM DLC with EFA, llm-d v0.10.0's aws-efa image
     max_model_len      = null
-    extra_args         = []
-    image_tag          = "v0.31.0"
-    hardware           = "nvidia" # or neuron: must match the pool's accelerator
+    # Wakes a scale_to_zero model: requests for its host at the gateway. null =
+    # istio_requests_total by request_host (istio's Telemetry adds the label).
+    wake_query = null
+    extra_args = []
+    image_tag  = "v0.31.0"
+    hardware   = "nvidia" # or neuron: must match the pool's accelerator
+    # Share of the GPU's memory vLLM may take (0-1]. Required on a time-sliced
+    # pool, at most 1 / its time_slice_replicas; Backstage writes 0.9 / replicas.
+    gpu_memory_utilization = null
     # Neuron: tensor parallelism counts NeuronCores, not devices.
     tensor_parallel_size = null                                               # default: gpus_per_replica
     neuron_image_tag     = "0.24.0.1.1.0-neuronx-py313-sdk2.32.0-ubuntu24.04" # 2026-08-18, Neuron SDK 2.32
@@ -46,7 +53,8 @@ locals {
   # the rest. Not on Neuron: llm-d is NVIDIA-only there; network identity still applies.
   llm_d = merge(local.defaults.llm_d, try(module.context.spec.llm_d, {}),
   [for f in [{ flow_control = true }] : f if local.shared && contains(["uat", "prod"], local.tier) && local.config.hardware == "nvidia"]...)
-  llm_d_on  = [for k, on in local.llm_d : k if on]
+  # scale_to_zero is Phoenix's (KEDA), not an llm-d release feature.
+  llm_d_on  = [for k, on in local.llm_d : k if on && k != "scale_to_zero"]
   llm_d_any = length(local.llm_d_on) > 0
 
   # Option rules, each one name; the plan fails naming every rule broken.
@@ -59,6 +67,11 @@ locals {
     efa_required             = !(local.llm_d.multi_node || local.llm_d.pd_disaggregation || local.llm_d.wide_ep) || local.pool_efa
     llm_d_installed          = !local.llm_d_any || can(local.llm_d_state.supported_options)
     available_in_release     = length(setsubtract(local.llm_d_on, try(local.llm_d_state.supported_options, local.llm_d_on))) == 0
+    # Scale-to-zero (D2): callers get 503 and retry while the model wakes, which
+    # only sandbox and uat accept; one Deployment to scale, so no P/D or multi-node.
+    scale_to_zero_needs_autoscaling = !local.llm_d.scale_to_zero || local.llm_d.autoscaling
+    scale_to_zero_sandbox_uat_only  = !local.llm_d.scale_to_zero || contains(["sandbox", "uat"], local.tier)
+    scale_to_zero_single_set        = !local.llm_d.scale_to_zero || !(local.llm_d.multi_node || local.llm_d.pd_disaggregation)
   }
   namespace = "models"
 
@@ -69,11 +82,22 @@ locals {
 
   gateway  = try(data.terraform_remote_state.istio.outputs.gateways.internal, null)
   hostname = "${local.slug}-${local.cluster_key}.${try(local.gateway.domain, "istio-missing")}"
+  # Optional: a hostname this model's clusters share, Route 53 failover between
+  # them (one PRIMARY, one SECONDARY). One label under the gateway's zone, so
+  # its wildcard listener and certificate cover it.
+  failover          = try(module.context.spec.failover, null)
+  failover_on       = local.failover != null
+  failover_domain   = try(local.gateway.domain, "istio-missing")
+  failover_hostname = local.failover_on ? lower(try(local.failover.hostname, "")) : null
+  hostnames         = concat([local.hostname], local.failover_on ? [local.failover_hostname] : [])
 
   weights          = try(data.terraform_remote_state.weights.outputs, {})
   cache_path       = try(local.weights.cache_path, null) == null ? "" : local.weights.cache_path
   fsx              = try(data.terraform_remote_state.fsx.outputs, {})
   pool_accelerator = try(data.terraform_remote_state.gpu_pool.outputs.accelerator, "nvidia")
+  # > 0: the pool shares each GPU this many ways (karpenter-nodepool time_slice_replicas).
+  pool_time_slice = try(data.terraform_remote_state.gpu_pool.outputs.time_slice_replicas, 0)
+  memory_args     = local.config.gpu_memory_utilization == null ? [] : ["--gpu-memory-utilization=${local.config.gpu_memory_utilization}"]
   hardware = {
     nvidia = {
       image       = { repository = "vllm/vllm-openai", tag = local.config.image_tag }

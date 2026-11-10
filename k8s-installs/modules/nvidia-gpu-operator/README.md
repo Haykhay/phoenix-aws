@@ -11,7 +11,17 @@ grafana-stack's Alloy scrapes the exporter's pods (label
 `app=nvidia-dcgm-exporter`) into Mimir, so GPU utilisation, memory and
 temperature show up per cluster in Grafana.
 
-`spec`: `chart_version`, `enabled`.
+`spec`: `chart_version`, `enabled`, `time_slice_profiles` (default `[2, 4]`).
+
+**Time-slicing.** The device plugin gets a ConfigMap (`time-slicing`) with one
+profile per entry in `time_slice_profiles`: `ts-<n>` shares each
+`nvidia.com/gpu` n ways and refuses a pod asking for more than one share
+(`failRequestsGreaterThanOne`). A node picks a profile by its
+`nvidia.com/device-plugin.config` label, which `karpenter-nodepool` sets from
+its `time_slice_replicas`; unlabelled nodes share nothing (`none`). Shares are
+not isolated: the models on one GPU split its memory and compute, which is why
+`vllm` then needs `gpu_memory_utilization`. `time_slice_profiles: []` renders
+no config, as before.
 
 ## Running it
 
@@ -56,7 +66,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/nvidia-gpu-operator.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`driver_disabled_dcgm_on`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`driver_disabled_dcgm_on`, `disabled_plans_nothing`, `operator_renders_slicing_config`, `no_slicing_profiles_no_config`).
 
 ### Outputs
 
