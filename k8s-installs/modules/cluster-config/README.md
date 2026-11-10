@@ -2,7 +2,11 @@
 
 Cluster-wide settings every other component relies on. Part of every cluster's
 baseline. Installs the `gp3` StorageClass (default class, encrypted, EBS CSI)
-into `kube-system`.
+into `kube-system`, and `phoenix-block`: the platform's cloud-neutral name for
+a pod's own disk (encrypted gp3 EBS here; each cloud maps it to its block
+storage), bound where the pod lands, expandable, not the default. Workloads
+ask for `phoenix-block` through the `volume` component, never for a cloud's
+class.
 
 EBS volumes created through it carry the unit's tags (`module.context.tags`
 plus `Cluster`) as `tagSpecification_N` parameters, so they show up in cost
@@ -53,7 +57,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/cluster-config.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `name_prefix_includes_cluster`, `personal_prefix`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `name_prefix_includes_cluster`, `personal_prefix`, `disabled_plans_nothing`, `block_class_is_encrypted_gp3`).
 
 ### Outputs
 
@@ -61,4 +65,4 @@ None besides `resource_summary` (what was planned, for the pipeline's summary).
 
 ### Removing it
 
-Nothing else on the cluster depends on it. Backstage destroys in reverse install order.
+Used by: every `volume` (`phoenix-block`). Backstage destroys in reverse install order, so volumes go first.

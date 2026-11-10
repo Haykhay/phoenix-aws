@@ -10,5 +10,11 @@ locals {
   namespace = "models"
   pvc_name  = "model-cache"
 
-  cache = try(data.terraform_remote_state.model_cache.outputs, {})
+  cache     = try(data.terraform_remote_state.model_cache.outputs, {})
+  has_cache = can(local.cache.file_system_id)
+
+  # phoenix-shared: one FSx for Lustre file system per claim (dynamic).
+  service_account = "fsx-csi-controller-sa" # the chart's controller account
+  role_name       = "${local.name_prefix}-fsx-csi"
+  tag_key         = "PhoenixCluster"
 }
