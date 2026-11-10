@@ -3,8 +3,33 @@
 [Kyverno](https://kyverno.io) plus a module-owned policies chart. Part of every
 cluster's baseline.
 
-The one policy today, `require-environment-images`, checks where internal
-images come from:
+Two policies: `require-environment-images` (always) and `phoenix-gpu-quotas`
+(only with `spec.quotas`).
+
+### GPU quotas
+
+`spec.quotas` caps the GPUs and Neuron devices a namespace's pods may request
+together. Kyverno generates one ResourceQuota (`phoenix-gpu-quota`) per listed
+namespace, also into namespaces that already exist, and keeps it in sync.
+Kyverno owns it because the namespaces (`models`, Argo CD's) are created after
+the baseline; a Helm-owned quota there would fail or fight their owners.
+
+```yaml
+spec:
+  quotas:
+    models: { nvidia: 4, neuron: 16 }   # requests.nvidia.com/gpu, requests.aws.amazon.com/neuron
+```
+
+Default `{}`: no quota. Backstage writes `models` from the environment form's
+optional **GPU quota for models** (the cluster entity's `phoenix/gpu-quota`),
+the same number for both accelerators. The plan fails for an accelerator other
+than `nvidia` or `neuron`, for a system namespace (`excluded_namespaces`), or
+for a quota that isn't a whole number of 0 or more. A pod that would go over
+the quota is refused by Kubernetes when it's created.
+
+### Image policy
+
+`require-environment-images` checks where internal images come from:
 
 | Setting (`spec.settings`, or under `kyverno_policies`) | Default | |
 |---|---|---|
@@ -59,7 +84,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/kyverno.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bad_policy_mode_rejected`, `disabled_plans_nothing`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bad_policy_mode_rejected`, `disabled_plans_nothing`, `no_quota_by_default`, `quota_renders_per_accelerator`, `quota_rejects_unknown_accelerator`, `quota_rejects_system_namespace`, `quota_rejects_negative`).
 
 ### Outputs
 

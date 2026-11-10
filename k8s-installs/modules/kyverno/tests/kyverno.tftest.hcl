@@ -80,3 +80,58 @@ run "disabled_plans_nothing" {
     error_message = "spec.enabled: false installs nothing"
   }
 }
+
+run "no_quota_by_default" {
+  command = plan
+
+  assert {
+    condition     = try(yamldecode(helm_release.kyverno_policies[0].values[0]).gpuQuotas, null) == []
+    error_message = "without spec.quotas no ResourceQuota is generated"
+  }
+}
+
+run "quota_renders_per_accelerator" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/quotas.yaml"
+  }
+
+  assert {
+    condition = try(yamldecode(helm_release.kyverno_policies[0].values[0]).gpuQuotas, null) == [{
+      namespace = "models"
+      hard      = { "requests.aws.amazon.com/neuron" = "16", "requests.nvidia.com/gpu" = "4" }
+    }]
+    error_message = "nvidia counts requests.nvidia.com/gpu, neuron counts requests.aws.amazon.com/neuron"
+  }
+}
+
+run "quota_rejects_unknown_accelerator" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/quota_bad_accelerator.yaml"
+  }
+
+  expect_failures = [helm_release.kyverno_policies]
+}
+
+run "quota_rejects_system_namespace" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/quota_system_namespace.yaml"
+  }
+
+  expect_failures = [helm_release.kyverno_policies]
+}
+
+run "quota_rejects_negative" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/quota_negative.yaml"
+  }
+
+  expect_failures = [helm_release.kyverno_policies]
+}

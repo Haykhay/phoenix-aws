@@ -45,9 +45,22 @@ locals {
     local.kyverno_namespace,
   ])
 
+  # spec.quotas: { <namespace> = { nvidia = N, neuron = N } }. Kyverno generates
+  # one ResourceQuota per namespace, also into namespaces that already exist.
+  quota_resources = {
+    nvidia = "requests.nvidia.com/gpu"
+    neuron = "requests.aws.amazon.com/neuron"
+  }
+  quotas = try(local.config.quotas, {})
+  gpu_quotas = [for ns, q in local.quotas : {
+    namespace = ns
+    hard      = { for acc, n in q : try(local.quota_resources[acc], acc) => tostring(n) }
+  }]
+
   kyverno_policies_default_values = {
     environmentName = local.environment
     policyMode      = local.policy_mode
+    gpuQuotas       = local.gpu_quotas
     environmentImagePolicy = {
       enabled              = true
       managedImagePatterns = local.managed_image_patterns
