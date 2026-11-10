@@ -16,7 +16,7 @@ spec:
   rules:
     - to:
         - operation:
-            hosts: [{{ .hostname | quote }}, {{ printf "%s:*" .hostname | quote }}]
+            hosts: [{{- range $i, $h := .hostnames }}{{ if $i }}, {{ end }}{{ $h | quote }}, {{ printf "%s:*" $h | quote }}{{- end }}]
       {{- if .allowedCidrs }}
       from:
         - source:
@@ -90,7 +90,7 @@ spec:
   rules:
     - to:
         - operation:
-            hosts: [{{ $.Values.access.hostname | quote }}, {{ printf "%s:*" $.Values.access.hostname | quote }}]
+            hosts: [{{- range $i, $h := $.Values.access.hostnames }}{{ if $i }}, {{ end }}{{ $h | quote }}, {{ printf "%s:*" $h | quote }}{{- end }}]
       from:
         - source:
             notRequestPrincipals: ["{{ .issuer }}/*"]
