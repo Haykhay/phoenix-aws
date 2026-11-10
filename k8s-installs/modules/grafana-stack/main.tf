@@ -87,6 +87,7 @@ resource "helm_release" "grafana" {
   values = concat(
     [templatefile("${path.module}/manifests/grafana.yaml.tpl", local.template_vars)],
     local.config.model_serving ? [local.model_serving_values] : [],
+    [local.cost_values],
   )
 
   depends_on = [helm_release.mimir, helm_release.loki, helm_release.tempo]

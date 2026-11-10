@@ -67,6 +67,13 @@ the cluster), one per anti-goal:
 Updating llm-d's dashboards: copy the new release's files over
 `manifests/dashboards/llm-d/` and change the version here.
 
+Every cluster also gets a **Cost** folder, independent of `model_serving`,
+fed by the `opencost` component's metrics:
+
+| Dashboard | uid | |
+|---|---|---|
+| Cost | `phoenix-cost` | USD per hour from AWS list prices: per namespace (CPU, memory and GPU allocation), per model in `models` (pod name without its ReplicaSet and pod suffixes), and per GPU type (whole GPU and Neuron node cost per Karpenter node pool) |
+
 ## Spec
 
 | `spec` | Default | |
@@ -123,7 +130,7 @@ terraform init -backend-config="bucket=<state bucket>" -backend-config="region=<
 terraform plan -var config_file=/path/to/grafana-stack.yaml
 ```
 
-Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `model_serving_off`).
+Tests, no AWS needed: `terraform init -backend=false && terraform test` (`plans_with_defaults`, `bindings_match_core_platform`, `gpu_metrics_scraped`, `bucket_from_observability_state`, `missing_observability_rejected`, `disabled_plans_nothing`, `model_serving_dashboards`, `cost_dashboard_provisioned`, `model_serving_off`).
 
 ### Outputs
 
@@ -137,4 +144,4 @@ Plus `resource_summary`, for the pipeline's summary.
 
 ### Removing it
 
-Nothing else on the cluster depends on it. Backstage destroys in reverse install order.
+`opencost` depends on it (it reads Mimir). Backstage destroys in reverse install order, so `opencost` goes first.

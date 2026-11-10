@@ -27,7 +27,7 @@ modules/_boilerplate/       the four files every component starts from (document
 
 | Choice in the form | Components |
 |---|---|
-| (every cluster, not shown) | cluster-config, karpenter, kyverno, falco, reloader, external-secrets, grafana-stack |
+| (every cluster, not shown) | cluster-config, karpenter, kyverno, falco, reloader, external-secrets, grafana-stack, opencost |
 | **Service** | cert-manager, aws-load-balancer-controller, istio, external-dns, argo-cd, kargo |
 | **Model serving** | the service set + aws-fsx-csi-driver, model-weights.&lt;model&gt;, vllm.&lt;model&gt;, clickhouse-operator, langfuse; llm-d when any llm-d option is chosen. Infrastructure first: model-store (once per group and region) and model-cache.&lt;cluster&gt; |
 | **GPU type** | karpenter-nodepool.&lt;gpu&gt;, plus nvidia-gpu-operator (NVIDIA) or neuron-device-plugin (Trainium/Inferentia) |
@@ -38,7 +38,7 @@ components' prerequisites, which give the install order (teardown is the
 reverse):
 
 ```text
-cluster-config > karpenter > kyverno > falco > reloader > external-secrets > grafana-stack
+cluster-config > karpenter > kyverno > falco > reloader > external-secrets > grafana-stack > opencost
 > cert-manager > aws-load-balancer-controller > external-dns > istio > argo-cd > kargo
 > nvidia-gpu-operator | neuron-device-plugin > karpenter-nodepool > aws-fsx-csi-driver > model-weights > llm-d > vllm
 > clickhouse-operator > langfuse

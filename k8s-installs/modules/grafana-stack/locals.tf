@@ -74,4 +74,18 @@ locals {
       }))
     }
   })
+
+  # OpenCost's metrics (the opencost component), on every cluster.
+  cost_values = yamlencode({
+    dashboardProviders = {
+      "cost.yaml" = {
+        apiVersion = 1
+        providers = [{
+          name    = "cost", folder = "Cost", type = "file", disableDeletion = true
+          options = { path = "/var/lib/grafana/dashboards/cost" }
+        }]
+      }
+    }
+    dashboards = { cost = { cost = { json = file("${path.module}/manifests/dashboards/cost.json") } } }
+  })
 }
