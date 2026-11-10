@@ -28,6 +28,14 @@ locals {
   )
   allowed_cidrs = [for i in local.identities : i.cidr]
 
+  # Requests per minute for consumers that have one; the owner is never limited.
+  # Keyed on a header of this model's own: the gateway is shared, and the Lua
+  # below strips it from every other host, so no request can spend another
+  # model's or another consumer's allowance.
+  rate_limited = { for name in sort(keys(local.access.consumers)) : name => local.access.consumers[name].requests_per_minute if try(local.access.consumers[name].requests_per_minute, null) != null }
+  rl_on        = length(local.rate_limited) > 0
+  rl_header    = "x-phoenix-rl-${local.server}"
+
   # The gateway runs one of these per model; each acts on its own hostname only.
   # replace, never add: a client can't name itself.
   consumer_lua = local.access_on && !local.oidc_on ? join("\n", [
@@ -50,7 +58,7 @@ locals {
       local headers = handle:headers()
       -- Hosts are case-insensitive: MODEL.example.com must not skip the filter.
       local authority = (headers:get(":authority") or ""):gsub(":%d+$", ""):lower()
-      if authority ~= host then return end
+      if authority ~= host then${local.rl_on ? " headers:remove(\"${local.rl_header}\")" : ""} return end
       local ip = num((handle:streamInfo():downstreamRemoteAddress() or ""):match("^([%d%.]+)") or "")
       local who = "unknown"
       if ip then
@@ -59,7 +67,7 @@ locals {
         end
       end
       headers:replace("x-phoenix-consumer", who)
-      headers:replace("x-gateway-inference-fairness-id", who)
+      headers:replace("x-gateway-inference-fairness-id", who)${local.rl_on ? "\n      headers:replace(\"${local.rl_header}\", who)" : ""}
     end
     LUA
   ]) : ""
@@ -69,6 +77,10 @@ locals {
     gateway      = { name = try(local.gateway.name, ""), namespace = try(local.gateway.namespace, "") }
     allowedCidrs = local.allowed_cidrs
     consumerLua  = local.consumer_lua
+    rateLimit = local.rl_on ? {
+      header    = local.rl_header
+      consumers = [for name, rpm in local.rate_limited : { name = name, requestsPerMinute = rpm }]
+    } : null
     oidc = local.oidc_on ? {
       issuer        = local.oidc.issuer
       jwksUri       = local.oidc.jwks_uri

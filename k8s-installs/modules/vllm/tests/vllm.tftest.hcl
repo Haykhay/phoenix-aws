@@ -534,6 +534,7 @@ run "default_render_unchanged" {
         gateway      = { name = "istio-internal", namespace = "istio-system" }
         allowedCidrs = ["10.64.0.0/18"]
         consumerLua  = local.consumer_lua
+        rateLimit    = null
         oidc         = null
       }
     })
@@ -909,4 +910,80 @@ run "shared_neuron_model_plans" {
     condition     = !local.llm_d.flow_control && alltrue(values(local.option_checks)) && length(helm_release.pool) == 1
     error_message = "a shared Neuron model stays on the default path (no llm-d on Neuron); consumers are still limited by network identity"
   }
+}
+
+run "rate_limit_per_consumer" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared-ratelimit.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = try(yamldecode(helm_release.server[0].values[0]).access.rateLimit, null) == {
+      header    = "x-phoenix-rl-${local.server}"
+      consumers = [{ name = "quant-research", requestsPerMinute = 60 }]
+    }
+    error_message = "only consumers with requests_per_minute are limited, keyed on this model's own header"
+  }
+  assert {
+    condition = alltrue([
+      strcontains(local.consumer_lua, "headers:replace(\"x-phoenix-rl-${local.server}\", who)"),
+      strcontains(local.consumer_lua, "if authority ~= host then headers:remove(\"x-phoenix-rl-${local.server}\") return end"),
+    ])
+    error_message = "the gateway sets this model's rate-limit key from the caller's CIDR, and strips it from every other host so no one can spend another consumer's allowance"
+  }
+}
+
+run "no_limit_by_default" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.shared.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = try(yamldecode(helm_release.server[0].values[0]).access.rateLimit, "missing") == null && !strcontains(local.consumer_lua, "x-phoenix-rl-")
+    error_message = "without requests_per_minute nothing is rate limited"
+  }
+}
+
+run "rate_limit_must_be_positive" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.ratelimit-zero.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "rate_limit_rejected_with_oidc" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/access/vllm.ratelimit-oidc.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
 }

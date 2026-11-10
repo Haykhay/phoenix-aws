@@ -91,7 +91,7 @@ The team that deploys a model owns it. `spec.access` (Backstage writes it):
 access:
   owner_cidrs: [10.20.0.0/16]          # the owner environment's VPC CIDR(s)
   consumers:                           # uat/prod only; approved in Backstage
-    quant-research: { cidrs: [10.30.0.0/16], weight: 1 }
+    quant-research: { cidrs: [10.30.0.0/16], weight: 1, requests_per_minute: 600 }
   oidc:                                # optional
     issuer: https://idp.example.com
     jwks_uri: https://idp.example.com/jwks
@@ -122,6 +122,17 @@ access:
   starve the others; consumers start equal (round-robin per
   consumer). `weight` is recorded for the owner's priority lever, which
   llm-d `v0.10.0`'s fairness policy does not take yet.
+- **Rate limits (option).** A consumer's `requests_per_minute` caps it on this
+  model: over the limit the gateway answers 429 (a token bucket refilled each
+  minute, so up to a minute's worth can arrive at once). The owner is never
+  limited. It is an Envoy local rate limit right after the Lua filter, keyed on
+  a header of this model's own (`x-phoenix-rl-<server>`) that the Lua stamps
+  from the caller's CIDR and strips from every other host, so no request can
+  spend another consumer's or another model's allowance. The count is per
+  gateway replica: with N replicas a consumer gets up to N × the limit.
+  Network identity only: with `oidc` the plan fails. A value that isn't a whole
+  number of 1 or more fails the plan. Backstage writes the workload form's
+  optional **Requests per minute per consumer** for every consumer.
 - **Fails closed.** With `owner_cidrs` empty the owner is the cluster's own VPC
   CIDR (from core-network's state); the plan fails if it can't find it. A
   consumer without CIDRs fails the plan. A model is never open to the whole

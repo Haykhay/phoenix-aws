@@ -102,6 +102,14 @@ resource "terraform_data" "validation" {
       error_message = "spec.access.oidc needs jwks_uri with issuer."
     }
     precondition {
+      condition     = !local.config.enabled || alltrue([for name, rpm in local.rate_limited : try(rpm > 0 && floor(rpm) == rpm, false)])
+      error_message = "spec.access.consumers[*].requests_per_minute must be a whole number of 1 or more (to stop a consumer, remove it from consumers)."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.oidc_on || !local.rl_on
+      error_message = "requests_per_minute works with network identity only, not with spec.access.oidc: rate limits key on the consumer the gateway stamps from the caller's CIDR."
+    }
+    precondition {
       condition     = !local.config.enabled || alltrue(values(local.option_checks))
       error_message = "spec.llm_d is invalid; failing checks: ${join(", ", [for k, ok in local.option_checks : k if !ok])}. llm-d options need hardware nvidia and the cluster's llm-d unit; wide_ep needs multi_node; multi_node needs nodes_per_replica >= 2 (and the reverse); multi_node, pd_disaggregation and wide_ep need an EFA pool; options must be in llm-d ${try(local.llm_d_state.version, "(not installed)")}'s supported_options (${join(", ", try(local.llm_d_state.supported_options, []))})."
     }
