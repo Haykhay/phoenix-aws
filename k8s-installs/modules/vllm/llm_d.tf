@@ -99,6 +99,7 @@ locals {
   common_args = concat(
     ["--model=${local.cache_path}", "--served-model-name=${local.served_name}"],
     local.config.max_model_len == null ? [] : ["--max-model-len=${local.config.max_model_len}"],
+    local.memory_args,
     local.parallel_args,
     local.kv_transfer == "" ? [] : ["--kv-transfer-config=\"$KV_TRANSFER_CONFIG\""],
     local.config.extra_args,

@@ -9,16 +9,9 @@ data "terraform_remote_state" "model_cache" {
   defaults = {}
 }
 
-resource "terraform_data" "validation" {
-  lifecycle {
-    precondition {
-      condition     = !local.config.enabled || can(local.cache.file_system_id)
-      error_message = "no model cache for cluster ${local.cluster_key}: apply infrastructure's model-cache.${local.cluster_key} first."
-    }
-  }
-}
-
-# Static provisioning only: the controller creates nothing in AWS, so no IAM.
+# The model cache is mounted statically when this cluster has one (vllm refuses
+# to start without it). phoenix-shared provisions file systems dynamically, so
+# the controller has a role of its own (iam.tf).
 resource "helm_release" "driver" {
   count      = local.config.enabled ? 1 : 0
   name       = "aws-fsx-csi-driver"
@@ -33,11 +26,11 @@ resource "helm_release" "driver" {
     node = { tolerateAllTaints = true }
   })]
 
-  depends_on = [terraform_data.validation]
+  depends_on = [time_sleep.pod_identity_propagation]
 }
 
 resource "helm_release" "volume" {
-  count            = local.config.enabled ? 1 : 0
+  count            = local.config.enabled && local.has_cache ? 1 : 0
   name             = local.pvc_name
   chart            = "${path.module}/manifests/model-cache"
   namespace        = local.namespace

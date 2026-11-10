@@ -86,3 +86,38 @@ run "disabled_plans_nothing" {
     error_message = "spec.enabled: false installs nothing"
   }
 }
+
+run "operator_renders_slicing_config" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.create, false) == true,
+      try(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.name, "") == "time-slicing",
+      try(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.default, "") == "none",
+      try(keys(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.data), []) == ["none", "ts-2", "ts-4"],
+      try(yamldecode(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.data.none), null) == { version = "v1" },
+    ])
+    error_message = "the device plugin gets profiles ts-2 and ts-4 (picked per node by its nvidia.com/device-plugin.config label) and no sharing by default"
+  }
+  assert {
+    condition = alltrue([for n in [2, 4] : try(yamldecode(yamldecode(helm_release.this[0].values[0]).devicePlugin.config.data["ts-${n}"]), null) == {
+      version = "v1"
+      sharing = { timeSlicing = { failRequestsGreaterThanOne = true, resources = [{ name = "nvidia.com/gpu", replicas = n }] } }
+    }])
+    error_message = "profile ts-<n> shares each nvidia.com/gpu n ways and refuses a pod asking for more than one share"
+  }
+}
+
+run "no_slicing_profiles_no_config" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/no-slicing.yaml"
+  }
+
+  assert {
+    condition     = try(yamldecode(helm_release.this[0].values[0]).devicePlugin.config, null) == null && yamldecode(helm_release.this[0].values[0]).devicePlugin.enabled == true
+    error_message = "with no profiles the device plugin runs as before"
+  }
+}
