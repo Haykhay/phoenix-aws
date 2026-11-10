@@ -81,6 +81,12 @@ labels:
   {{- with .set.role }}
   llm-d.ai/role: {{ . }}
   {{- end }}
+  {{- with .v.llmD.autoscaling }}
+  {{- if .scaleToZero }}
+  # grafana-stack's AcceleratorIdle skips these: idle is how they reach zero.
+  phoenix/scale-to-zero: "true"
+  {{- end }}
+  {{- end }}
 annotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: {{ .set.port | quote }}

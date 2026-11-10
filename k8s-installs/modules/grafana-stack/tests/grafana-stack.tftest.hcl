@@ -200,6 +200,21 @@ run "cost_dashboard_provisioned" {
   }
 }
 
+run "scale_to_zero_models_not_idle" {
+  command = plan
+
+  assert {
+    condition = strcontains(try(one([
+      for r in yamldecode(helm_release.grafana[0].values[1]).alerting["model-serving.yaml"].groups[0].rules : r.data[0].model.expr if r.uid == "accelerator-idle"
+    ]), ""), "unless on (pod) kube_pod_labels{namespace=\"models\", label_phoenix_scale_to_zero=\"true\"}")
+    error_message = "AcceleratorIdle skips scale_to_zero models: idle is how they reach zero"
+  }
+  assert {
+    condition     = contains(try(yamldecode(helm_release.kube_state_metrics[0].values[0]).metricLabelsAllowlist, []), "pods=[phoenix/scale-to-zero]")
+    error_message = "kube-state-metrics exports the pod label the alert keys on"
+  }
+}
+
 run "model_serving_off" {
   command = plan
 
