@@ -1,0 +1,262 @@
+{
+  "uid": "phoenix-global-cost",
+  "title": "Global cost",
+  "tags": [
+    "phoenix",
+    "cost",
+    "global"
+  ],
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "description": "USD per hour across every cluster that sends to this management cluster (ADR-0011), from each cluster's OpenCost.",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Cost per cloud",
+      "description": "Whole-node cost per cloud.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (cloud) (node_total_hourly_cost)",
+          "legendFormat": "{{cloud}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cost per cluster",
+      "description": "Whole-node cost per cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (cloud, cluster) (node_total_hourly_cost)",
+          "legendFormat": "{{cloud}} \u00b7 {{cluster}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Cost per namespace",
+      "description": "CPU, memory and GPU allocation cost per namespace and cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (cloud, cluster, namespace) (label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_cpu_allocation) * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_cpu_hourly_cost), \"type\", \"cpu\", \"\", \"\") or label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_memory_allocation_bytes) / 1073741824 * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_ram_hourly_cost), \"type\", \"ram\", \"\", \"\") or label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_gpu_allocation) * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_gpu_hourly_cost), \"type\", \"gpu\", \"\", \"\"))",
+          "legendFormat": "{{cluster}} \u00b7 {{namespace}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Cost per model",
+      "description": "Allocation cost of each model server, per cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (cloud, cluster, model) (label_replace(label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_cpu_allocation{namespace=\"models\"}) * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_cpu_hourly_cost), \"type\", \"cpu\", \"\", \"\") or label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_memory_allocation_bytes{namespace=\"models\"}) / 1073741824 * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_ram_hourly_cost), \"type\", \"ram\", \"\", \"\") or label_replace(avg by (cloud, cluster, container, node, namespace, pod) (container_gpu_allocation{namespace=\"models\"}) * on (cloud, cluster, node) group_left () avg by (cloud, cluster, node) (node_gpu_hourly_cost), \"type\", \"gpu\", \"\", \"\"), \"model\", \"$1\", \"pod\", \"(.+)-[a-z0-9]+-[a-z0-9]+\"))",
+          "legendFormat": "{{cluster}} \u00b7 {{model}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Cost per GPU type",
+      "description": "Whole-node cost of GPU and Neuron nodes per Karpenter node pool, per cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (cloud, cluster, nodepool) (avg by (cloud, cluster, node) (node_total_hourly_cost) * on (cloud, cluster, node) group_left (nodepool) label_replace(max by (cloud, cluster, node_name, nodepool) (karpenter_nodes_allocatable{resource_type=~\"nvidia.com/gpu|aws.amazon.com/neuron\"} > 0), \"node\", \"$1\", \"node_name\", \"(.*)\"))",
+          "legendFormat": "{{cluster}} \u00b7 {{nodepool}}"
+        }
+      ]
+    }
+  ]
+}

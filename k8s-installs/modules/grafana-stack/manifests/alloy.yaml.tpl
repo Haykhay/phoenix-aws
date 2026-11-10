@@ -42,7 +42,7 @@ alloy:
       prometheus.scrape "pods" {
         targets      = discovery.relabel.scrape.output
         honor_labels = true
-        forward_to = [prometheus.remote_write.mimir.receiver]
+        forward_to = [prometheus.remote_write.mimir.receiver%{ if global_on }, prometheus.remote_write.global.receiver%{ endif }]
       }
 
       prometheus.remote_write "mimir" {
@@ -53,6 +53,30 @@ alloy:
           cluster = "${cluster_name}",
         }
       }
+%{ if global_on ~}
+
+      // The allowlisted series, to the management cluster's Mimir (ADR-0011).
+      prometheus.remote_write "global" {
+        endpoint {
+          url = "${global_url}"
+          basic_auth {
+            username = sys.env("GLOBAL_METRICS_USERNAME")
+            password = sys.env("GLOBAL_METRICS_PASSWORD")
+          }
+          write_relabel_config {
+            source_labels = ["__name__"]
+            regex         = "${global_regex}"
+            action        = "keep"
+          }
+        }
+        external_labels = {
+          cluster = "${cluster_name}",
+          env_id  = "${env_id}",
+          tier    = "${tier}",
+          cloud   = "aws",
+        }
+      }
+%{ endif ~}
 
       loki.source.kubernetes "pods" {
         targets    = discovery.kubernetes.pods.targets

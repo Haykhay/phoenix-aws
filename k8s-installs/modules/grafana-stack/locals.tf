@@ -6,6 +6,13 @@ locals {
     observability_environment = "shared"
     # Model-serving dashboards and alerts, and kube-state-metrics for them.
     model_serving = true
+    # Send a few series to the management cluster's Mimir (ADR-0011):
+    # { remote_write_url = "https://metrics-<cluster>.<its internal zone>/api/v1/push",
+    #   credentials_secret = Secrets Manager name, default <organisation>/<env_id>/global-metrics }
+    global_metrics = null
+    # This is the management cluster: receive those series behind an
+    # authenticating proxy on the internal gateway, and show them globally.
+    global_receiver = false
     chart_versions = {
       mimir   = "6.2.1"  # Mimir 3.2.1 — ingest storage with the chart's own Kafka
       loki    = "7.3.0"  # Loki 3.6.12
@@ -19,6 +26,21 @@ locals {
 
   config         = merge(local.defaults, module.context.spec)
   chart_versions = merge(local.defaults.chart_versions, try(module.context.spec.chart_versions, {}))
+
+  # Cross-cluster metrics (ADR-0011). Only these series leave a cluster: GPU
+  # use, inference load, gateway traffic, node pools and OpenCost's costs.
+  global_allowlist = [
+    "DCGM_FI_DEV_GPU_UTIL", "llm_d_epp_request_running", "istio_requests_total", "karpenter_nodes_allocatable",
+    "node_total_hourly_cost", "node_cpu_hourly_cost", "node_ram_hourly_cost", "node_gpu_hourly_cost",
+    "container_cpu_allocation", "container_memory_allocation_bytes", "container_gpu_allocation",
+  ]
+  global_on     = local.config.global_metrics != null
+  global_url    = try(local.config.global_metrics.remote_write_url, "")
+  global_secret = "${module.context.organisation}/${module.context.env_id}/global-metrics"
+  send_secret   = coalesce(try(local.config.global_metrics.credentials_secret, null), local.global_secret)
+  receiver_on   = local.config.global_receiver
+  internal_gw   = try(data.terraform_remote_state.istio.outputs.gateways.internal, null)
+  receiver_host = "metrics-${local.cluster_key}.${try(local.internal_gw.domain, "istio-missing")}"
 
   # Must match core-platform's Pod Identity bindings (monitoring/<writer>).
   namespace = "monitoring"
@@ -41,6 +63,11 @@ locals {
     loki_prefix  = "${local.prefixes.loki}${local.cluster_name}"
     tempo_prefix = "${local.prefixes.tempo}${local.cluster_name}"
     namespace    = local.namespace
+    global_on    = local.global_on
+    global_url   = local.global_url
+    global_regex = join("|", local.global_allowlist)
+    env_id       = module.context.env_id
+    tier         = module.context.tier
   }
 
   # llm-d's published dashboards, vendored unmodified from llm-d v0.10.0
@@ -87,5 +114,31 @@ locals {
       }
     }
     dashboards = { cost = { cost = { json = file("${path.module}/manifests/dashboards/cost.json") } } }
+  })
+
+  # The receiver's Global folder: cost across clouds and clusters.
+  global_values = yamlencode({
+    dashboardProviders = {
+      "global.yaml" = {
+        apiVersion = 1
+        providers = [{
+          name    = "global", folder = "Global", type = "file", disableDeletion = true
+          options = { path = "/var/lib/grafana/dashboards/global" }
+        }]
+      }
+    }
+    dashboards = { global = { "global-cost" = { json = file("${path.module}/manifests/dashboards/global-cost.json") } } }
+  })
+
+  # Alloy reads the write credential from its environment, never its config.
+  # optional: until the secret syncs, Alloy still starts (it also carries the
+  # cluster's own metrics, logs and traces); only the global writes fail.
+  global_env_values = yamlencode({
+    alloy = {
+      extraEnv = [for k in ["username", "password"] : {
+        name      = "GLOBAL_METRICS_${upper(k)}"
+        valueFrom = { secretKeyRef = { name = "global-metrics", key = k, optional = true } }
+      }]
+    }
   })
 }

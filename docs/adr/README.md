@@ -14,3 +14,4 @@ Decisions behind Phoenix on AWS, one file each. Status: all **Accepted** (2026-1
 | [0008](0008-istio-as-the-one-gateway-with-the-inference-extension-for-models.md) | Istio as the one gateway, with the Inference Extension for models |
 | [0009](0009-verify-offline-before-deploying.md) | Verify offline before deploying |
 | [0010](0010-teardown-is-a-normal-operation.md) | Teardown is a normal operation |
+| [0011](0011-global-metrics-in-a-management-cluster.md) | Global metrics in a management cluster |

@@ -11,8 +11,27 @@ data "terraform_remote_state" "observability" {
   defaults = {}
 }
 
+# The management cluster's internal gateway, for global_receiver's route.
+data "terraform_remote_state" "istio" {
+  backend = "s3"
+  config = {
+    bucket = module.context.state.bucket
+    region = module.context.state.region
+    key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/istio/terraform.tfstate"
+  }
+  defaults = {}
+}
+
 resource "terraform_data" "validation" {
   lifecycle {
+    precondition {
+      condition     = !local.config.enabled || !local.global_on || startswith(local.global_url, "https://")
+      error_message = "spec.global_metrics.remote_write_url must be https://: the write credential travels with every request."
+    }
+    precondition {
+      condition     = !local.config.enabled || !local.receiver_on || local.internal_gw != null
+      error_message = "spec.global_receiver needs istio's internal gateway on this cluster (its TLS listener and DNS): apply istio first."
+    }
     precondition {
       condition     = !local.config.enabled || can(local.observability.bucket_name)
       error_message = "No observability state for ${module.context.group}-${local.config.observability_environment}/${local.region}. Apply infrastructure's observability unit for the group first."
@@ -72,9 +91,12 @@ resource "helm_release" "alloy" {
   chart      = "alloy"
   version    = local.chart_versions.alloy
   namespace  = local.namespace
-  values     = [templatefile("${path.module}/manifests/alloy.yaml.tpl", local.template_vars)]
+  values = concat(
+    [templatefile("${path.module}/manifests/alloy.yaml.tpl", local.template_vars)],
+    local.global_on ? [local.global_env_values] : [],
+  )
 
-  depends_on = [helm_release.mimir, helm_release.loki, helm_release.tempo]
+  depends_on = [helm_release.mimir, helm_release.loki, helm_release.tempo, helm_release.global_metrics]
 }
 
 resource "helm_release" "grafana" {
@@ -88,6 +110,7 @@ resource "helm_release" "grafana" {
     [templatefile("${path.module}/manifests/grafana.yaml.tpl", local.template_vars)],
     local.config.model_serving ? [local.model_serving_values] : [],
     [local.cost_values],
+    local.receiver_on ? [local.global_values] : [],
   )
 
   depends_on = [helm_release.mimir, helm_release.loki, helm_release.tempo]
@@ -111,4 +134,29 @@ resource "helm_release" "kube_state_metrics" {
   })]
 
   depends_on = [helm_release.mimir]
+}
+
+# Cross-cluster metrics (ADR-0011): the sender's credential (an ExternalSecret
+# from the environment's prefix), and on the management cluster the receiver:
+# an nginx that checks a password file and forwards writes only to Mimir,
+# reachable on the internal gateway's TLS listener.
+resource "helm_release" "global_metrics" {
+  count     = local.config.enabled && (local.global_on || local.receiver_on) ? 1 : 0
+  name      = "global-metrics"
+  chart     = "${path.module}/manifests/global-metrics"
+  namespace = local.namespace
+
+  values = [yamlencode({
+    send = local.global_on ? { secretName = local.send_secret } : null
+    receive = local.receiver_on ? {
+      secretName = local.global_secret
+      hostname   = local.receiver_host
+      gateway    = { name = try(local.internal_gw.name, ""), namespace = try(local.internal_gw.namespace, "") }
+      upstream   = "http://mimir-gateway.${local.namespace}.svc"
+      # The image Mimir's own gateway runs.
+      image = "docker.io/nginxinc/nginx-unprivileged:1.29-alpine"
+    } : null
+  })]
+
+  depends_on = [terraform_data.validation, helm_release.mimir]
 }

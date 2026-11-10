@@ -1,0 +1,5 @@
+apiVersion: v2
+name: global-metrics
+description: Cross-cluster metrics (ADR-0011) - the sender credential and the management cluster receiver
+type: application
+version: 0.1.0

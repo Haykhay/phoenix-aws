@@ -1,0 +1,21 @@
+{{- with .Values.send }}
+# The write credential (username, password) from the environment's own
+# secrets prefix (ADR-0007); Alloy reads it from its environment.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: global-metrics
+  namespace: {{ $.Release.Namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+  target:
+    name: global-metrics
+  data:
+    - secretKey: username
+      remoteRef: { key: {{ .secretName | quote }}, property: username }
+    - secretKey: password
+      remoteRef: { key: {{ .secretName | quote }}, property: password }
+{{- end }}
