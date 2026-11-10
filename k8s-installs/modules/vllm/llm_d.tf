@@ -119,16 +119,24 @@ locals {
     # Host memory for offloaded KV plus vLLM's own; Karpenter sizes the node from it.
     memoryRequest = local.llm_d.kv_offload ? "${local.config.kv_offload_cpu_gib + 32}Gi" : ""
     sidecarImage  = "ghcr.io/llm-d/llm-d-router-disagg-sidecar:${local.config.disagg_sidecar_tag}"
-    # KEDA on the router's running-request count, read from Mimir. Never to zero.
+    # KEDA on the router's running-request count, read from Mimir. Never to zero
+    # unless scale_to_zero: then 0 after 30 idle minutes, woken by requests for
+    # the model's host at the gateway (the router's count is empty at zero).
     autoscaling = local.llm_d.autoscaling ? {
       target           = local.scaled.name
       targetKind       = local.nodes > 1 ? "LeaderWorkerSet" : "Deployment"
       targetApiVersion = local.nodes > 1 ? "leaderworkerset.x-k8s.io/v1" : "apps/v1"
-      minReplicas      = max(1, local.config.min_replicas)
+      minReplicas      = local.llm_d.scale_to_zero ? 0 : max(1, local.config.min_replicas)
       maxReplicas      = max(1, local.config.min_replicas, local.config.max_replicas)
       serverAddress    = "http://mimir-gateway.monitoring.svc/prometheus"
       query            = "sum(llm_d_epp_request_running{model_name=\"${local.served_name}\"})"
       threshold        = tostring(local.config.autoscale_target)
+      scaleToZero      = local.llm_d.scale_to_zero
+      cooldownSeconds  = local.llm_d.scale_to_zero ? 1800 : null
+      wake = local.llm_d.scale_to_zero ? {
+        query               = coalesce(local.config.wake_query, "sum(rate(istio_requests_total{request_host=~\"${local.hostname}(:[0-9]+)?\"}[2m]))")
+        activationThreshold = "0"
+      } : null
     } : null
   }
 }

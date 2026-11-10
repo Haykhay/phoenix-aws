@@ -105,6 +105,9 @@ resource "helm_release" "kube_state_metrics" {
 
   values = [yamlencode({
     podAnnotations = { "prometheus.io/scrape" = "true", "prometheus.io/port" = "8080" }
+    # kube_pod_labels carries only allowlisted labels: AcceleratorIdle skips
+    # scale_to_zero models by this one.
+    metricLabelsAllowlist = ["pods=[phoenix/scale-to-zero]"]
   })]
 
   depends_on = [helm_release.mimir]

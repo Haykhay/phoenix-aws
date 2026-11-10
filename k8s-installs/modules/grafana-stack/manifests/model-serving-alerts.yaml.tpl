@@ -45,9 +45,12 @@ groups:
             model:
               refId: A
               instant: true
+              # scale_to_zero models (pod label phoenix/scale-to-zero) are skipped:
+              # idle is how they reach zero, 30 minutes after their last request.
               expr: >-
-                label_replace(avg by (pod) (avg_over_time(DCGM_FI_DEV_GPU_UTIL{namespace="models"}[30m])),
+                (label_replace(avg by (pod) (avg_over_time(DCGM_FI_DEV_GPU_UTIL{namespace="models"}[30m])),
                 "model", "$1", "pod", "vllm-(.+)-[^-]+-[^-]+")
+                unless on (pod) kube_pod_labels{namespace="models", label_phoenix_scale_to_zero="true"})
                 or (100 * avg by (instance_id) (avg_over_time(neuroncore_utilization_ratio[30m])))
           - refId: C
             datasourceUid: __expr__

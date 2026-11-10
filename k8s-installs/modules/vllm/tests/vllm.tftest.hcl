@@ -987,3 +987,118 @@ run "rate_limit_rejected_with_oidc" {
 
   expect_failures = [terraform_data.validation]
 }
+
+run "option_scale_to_zero" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.minReplicas, -1) == 0,
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.cooldownSeconds, 0) == 1800,
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.scaleToZero, false) == true,
+      strcontains(try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.query, ""), "istio_requests_total{request_host=~\"${local.hostname}"),
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.activationThreshold, "") == "0",
+      !contains(output.llm_d_options, "scale_to_zero"),
+    ])
+    error_message = "scale_to_zero: down to 0 after 30 idle minutes, woken by gateway requests for the model's host (the router's metric is empty at zero); not an llm-d release option"
+  }
+}
+
+run "autoscale_without_zero_stays_at_one" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.autoscale.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition = alltrue([
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.minReplicas, -1) == 1,
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake, "missing") == null,
+      try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.cooldownSeconds, "missing") == null,
+    ])
+    error_message = "autoscaling alone still never goes to zero (min_replicas 0 becomes 1), with no wake trigger"
+  }
+}
+
+run "zero_allowed_on_uat" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero-uat.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.minReplicas, -1) == 0
+    error_message = "uat models may scale to zero (D2)"
+  }
+}
+
+run "zero_rejected_on_prod" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero-prod.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "zero_requires_autoscaling" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero-no-autoscaling.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "zero_rejected_multi_node" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero-multi-node.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4", node_selector = { "phoenix/gpu" = "l4" }, efa = true } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
