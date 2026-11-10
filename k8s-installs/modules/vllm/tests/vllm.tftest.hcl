@@ -1181,7 +1181,7 @@ run "option_scale_to_zero" {
       try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.minReplicas, -1) == 0,
       try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.cooldownSeconds, 0) == 1800,
       try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.scaleToZero, false) == true,
-      strcontains(try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.query, ""), "istio_requests_total{request_host=~\"${local.hostname}"),
+      strcontains(try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.query, ""), "istio_requests_total{request_host=~\"(${local.hostname}"),
       try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.activationThreshold, "") == "0",
       !contains(output.llm_d_options, "scale_to_zero"),
     ])
@@ -1277,4 +1277,22 @@ run "zero_rejected_multi_node" {
   }
 
   expect_failures = [terraform_data.validation]
+}
+
+run "zero_wakes_on_every_hostname" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/llm-d/vllm.scale-to-zero-failover.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = alltrue([for h in local.hostnames : strcontains(try(yamldecode(helm_release.server[0].values[0]).llmD.autoscaling.wake.query, ""), h)]) && length(local.hostnames) == 2
+    error_message = "a scale_to_zero model wakes on requests for any of its hostnames, the failover one too"
+  }
 }
