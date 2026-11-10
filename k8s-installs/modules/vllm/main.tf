@@ -86,6 +86,22 @@ resource "terraform_data" "validation" {
       error_message = "spec.hardware is ${local.config.hardware} but pool gpu-${coalesce(local.config.gpu, "none")} is ${local.pool_accelerator}: pick a ${local.config.hardware} GPU type."
     }
     precondition {
+      condition     = !local.config.enabled || local.config.gpu_memory_utilization == null || try(local.config.gpu_memory_utilization > 0 && local.config.gpu_memory_utilization <= 1, false)
+      error_message = "spec.gpu_memory_utilization is a share of the GPU's memory: more than 0, at most 1."
+    }
+    precondition {
+      condition     = !local.config.enabled || local.pool_time_slice == 0 || local.config.gpu_memory_utilization != null
+      error_message = "pool gpu-${coalesce(local.config.gpu, "none")} shares each GPU ${local.pool_time_slice} ways: set spec.gpu_memory_utilization (at most ${format("%.2f", 1 / max(local.pool_time_slice, 1))}) so the models on one GPU fit its memory together."
+    }
+    precondition {
+      condition     = !local.config.enabled || local.pool_time_slice == 0 || local.config.gpu_memory_utilization == null || try(local.config.gpu_memory_utilization * local.pool_time_slice <= 1, false)
+      error_message = "spec.gpu_memory_utilization ${coalesce(local.config.gpu_memory_utilization, 0)} x ${local.pool_time_slice} shares is more than the GPU's memory: use at most ${format("%.2f", 1 / max(local.pool_time_slice, 1))}."
+    }
+    precondition {
+      condition     = !local.config.enabled || local.pool_time_slice == 0 || (local.config.gpus_per_replica == 1 && local.config.nodes_per_replica == 1)
+      error_message = "on a time-sliced pool a replica uses one share of one GPU: gpus_per_replica and nodes_per_replica must be 1."
+    }
+    precondition {
       condition     = !local.config.enabled || !local.shared || contains(["uat", "prod"], local.tier)
       error_message = "spec.access.consumers is for uat and prod only (consumers_only_uat_prod); ${local.tier} models serve their owner."
     }
@@ -184,7 +200,7 @@ resource "helm_release" "server" {
     prepull        = true
     replicas       = local.config.replicas
     maxModelLen    = local.config.max_model_len
-    extraArgs      = local.config.extra_args
+    extraArgs      = concat(local.memory_args, local.config.extra_args)
     image          = local.efa_on ? { repository = "public.ecr.aws/deep-learning-containers/vllm", tag = local.config.efa_image_tag } : local.hardware.image
     command        = local.hardware.command
     accelerator    = local.hardware.accelerator
