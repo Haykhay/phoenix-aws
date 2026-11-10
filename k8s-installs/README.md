@@ -31,6 +31,7 @@ modules/_boilerplate/       the four files every component starts from (document
 | **Service** | cert-manager, aws-load-balancer-controller, istio, external-dns, argo-cd, kargo |
 | **Model serving** | the service set + aws-fsx-csi-driver, model-weights.&lt;model&gt;, vllm.&lt;model&gt;, clickhouse-operator, langfuse; llm-d when any llm-d option is chosen. Infrastructure first: model-store (once per group and region) and model-cache.&lt;cluster&gt; |
 | **GPU type** | karpenter-nodepool.&lt;gpu&gt;, plus nvidia-gpu-operator (NVIDIA) or neuron-device-plugin (Trainium/Inferentia) |
+| **Storage** | block: volume.&lt;name&gt; on `phoenix-block` (cluster-config); shared file system: aws-fsx-csi-driver + volume.&lt;name&gt; on `phoenix-shared` |
 | **Postgres / Redis / Kafka** | cloudnative-pg + cloudnative-pg-cluster.&lt;name&gt; / valkey-redis + valkey-redis-cluster.&lt;name&gt; / strimzi-kafka + strimzi-kafka-cluster.&lt;name&gt; (sandbox; stage and above use infrastructure's managed data-*) |
 
 The sets are Backstage catalog data (the Backstage repository's `phoenix/catalog/`); so are the

@@ -357,6 +357,7 @@ run "nvidia_by_default" {
 
 # llm-d options. The file-level llm-d override is "not installed": the
 # default path must never need it.
+
 run "no_options_needs_no_llm_d" {
   command = plan
 
@@ -1062,6 +1063,102 @@ run "failover_hostname_not_the_clusters_own" {
 
   variables {
     config_file = "tests/fixtures/vllm.failover-same-host.yaml"
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "shared_gpu_sets_memory_fraction" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.shared-gpu.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4-shared", node_selector = { "phoenix/gpu" = "l4-shared" }, accelerator = "nvidia", time_slice_replicas = 4 } }
+  }
+
+  assert {
+    condition     = contains(try(yamldecode(helm_release.server[0].values[0]).extraArgs, []), "--gpu-memory-utilization=0.22")
+    error_message = "on a time-sliced GPU vLLM takes only its share of the GPU's memory"
+  }
+}
+
+run "shared_gpu_fraction_on_llm_d_path" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.shared-gpu-llmd.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4-shared", node_selector = { "phoenix/gpu" = "l4-shared" }, accelerator = "nvidia", time_slice_replicas = 4 } }
+  }
+
+  override_data {
+    target = data.terraform_remote_state.llm_d
+    values = { outputs = { version = "v0.10.0", supported_options = ["routing", "kv_offload", "flow_control", "autoscaling", "multi_node", "pd_disaggregation", "wide_ep"] } }
+  }
+
+  assert {
+    condition     = contains(local.common_args, "--gpu-memory-utilization=0.22")
+    error_message = "the llm-d path passes the memory share too"
+  }
+}
+
+run "shared_gpu_requires_memory_fraction" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.shared-gpu-no-fraction.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4-shared", node_selector = { "phoenix/gpu" = "l4-shared" }, accelerator = "nvidia", time_slice_replicas = 4 } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "shared_gpu_fraction_must_fit" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.shared-gpu-big-fraction.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4-shared", node_selector = { "phoenix/gpu" = "l4-shared" }, accelerator = "nvidia", time_slice_replicas = 4 } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "shared_gpu_one_device_per_replica" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.shared-gpu-two.yaml"
+  }
+
+  override_data {
+    target = data.terraform_remote_state.gpu_pool
+    values = { outputs = { node_pool = "gpu-l4-shared", node_selector = { "phoenix/gpu" = "l4-shared" }, accelerator = "nvidia", time_slice_replicas = 4 } }
+  }
+
+  expect_failures = [terraform_data.validation]
+}
+
+run "memory_fraction_out_of_range_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/vllm.fraction-out-of-range.yaml"
   }
 
   expect_failures = [terraform_data.validation]

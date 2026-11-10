@@ -16,6 +16,9 @@ locals {
     volume_size           = "200Gi"         # model images and weights are large
     expire_after          = "168h"
     consolidate_after     = "5m"
+    # NVIDIA only: share each GPU this many ways (a profile nvidia-gpu-operator
+    # renders, ts-<n>). 0 = whole GPUs. vllm then needs gpu_memory_utilization.
+    time_slice_replicas = 0
   }
 
   config    = merge(local.defaults, module.context.spec)
@@ -42,4 +45,7 @@ locals {
     neuron = { name = "neuron", taint = "aws.amazon.com/neuron", resource = "aws.amazon.com/neuron", countLabel = "karpenter.k8s.aws/instance-accelerator-count" }
   }
   accelerator = lookup(local.accelerators, local.config.accelerator, local.accelerators.nvidia)
+
+  # Must match nvidia-gpu-operator's default time_slice_profiles.
+  time_slice_profiles = [2, 4]
 }

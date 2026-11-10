@@ -23,6 +23,11 @@ output "accelerator" {
   value       = local.config.accelerator
 }
 
+output "time_slice_replicas" {
+  description = "How many ways each GPU is shared (0 = whole GPUs); vllm needs gpu_memory_utilization when > 0."
+  value       = local.config.time_slice_replicas
+}
+
 output "resource_summary" {
   value = {
     environment  = local.environment
