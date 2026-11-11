@@ -6,10 +6,11 @@
 module "management_cluster" {
   source = "../cluster"
 
-  state   = module.context.state
-  env_id  = module.context.env_id
-  region  = module.context.region
-  cluster = local.management_cluster
+  state    = module.context.state
+  role_arn = module.context.deploy_role_arn
+  env_id   = module.context.env_id
+  region   = module.context.region
+  cluster  = local.management_cluster
 }
 
 data "terraform_remote_state" "management" {
@@ -19,6 +20,9 @@ data "terraform_remote_state" "management" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.management_cluster}/kargo/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }

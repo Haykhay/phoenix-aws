@@ -1,6 +1,7 @@
 provider "aws" {
   region              = local.region
   allowed_account_ids = [local.account_id]
+  assume_role { role_arn = module.context.deploy_role_arn }
 
   default_tags {
     tags = merge(
@@ -21,7 +22,7 @@ provider "helm" {
     exec = {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", local.region, "--output", "json"]
+      args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", local.region, "--output", "json", "--role-arn", module.context.deploy_role_arn]
     }
   }
 }
@@ -32,6 +33,6 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", local.region, "--output", "json"]
+    args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", local.region, "--output", "json", "--role-arn", module.context.deploy_role_arn]
   }
 }

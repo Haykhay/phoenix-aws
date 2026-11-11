@@ -1,5 +1,4 @@
 
-data "aws_caller_identity" "current" {}
 
 # Resolve the latest compatible addon version for any addon that sets
 # most_recent: true without a pinned addon_version. Only creates one

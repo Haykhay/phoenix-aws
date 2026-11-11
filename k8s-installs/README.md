@@ -85,8 +85,10 @@ spec:
 
 The workflow (`../.github/workflows/terraform.yml`, shared with
 infrastructure) checks the path against the YAML (tier, env_id, region,
-cluster, a known component, a valid instance), assumes
-`arn:aws:iam::<account_id>:role/Terraform-Role`, and runs the unit on the
+cluster, a known component, a valid instance), signs in as the unit's OIDC
+role and assumes its deploy role in the account (ADR-0012; cluster logins too:
+`aws eks get-token --role-arn`, and `core-platform` makes that role
+cluster-admin), and runs the unit on the
 **`phoenix-mgmt` self-hosted runner** in the management VPC — EKS endpoints
 are private, and the runner reaches every cluster in the IPAM range
 (networking is designed separately; each cluster allows the runner range

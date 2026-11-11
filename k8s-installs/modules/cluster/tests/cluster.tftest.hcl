@@ -1,10 +1,11 @@
 mock_provider "aws" {}
 
 variables {
-  state   = { bucket = "acme-tfstate-111111111111", region = "eu-west-1" }
-  env_id  = "research-sandbox"
-  region  = "eu-west-1"
-  cluster = "1"
+  state    = { bucket = "acme-tfstate-111111111111", region = "eu-west-1" }
+  role_arn = "arn:aws:iam::111111111111:role/deploy-role"
+  env_id   = "research-sandbox"
+  region   = "eu-west-1"
+  cluster  = "1"
 }
 
 override_data {

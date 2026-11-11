@@ -47,7 +47,7 @@ shared segment comes from it. `spec.enabled: false` installs nothing.
 
 - `cluster-config` (baseline order; no catalog `dependsOn`).
 
-**Access**: as every cluster component (see [`../reloader/README.md`](../reloader/README.md#running-it)): Terraform ≥ 1.15, the `aws` CLI, `Terraform-Role` in the unit's account, and reach to the cluster's private API (the `phoenix-mgmt` runner).
+**Access**: as every cluster component (see [`../reloader/README.md`](../reloader/README.md#running-it)): Terraform ≥ 1.15, the `aws` CLI, credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and reach to the cluster's private API (the `phoenix-mgmt` runner).
 
 ### The unit file
 

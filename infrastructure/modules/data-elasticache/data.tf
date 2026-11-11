@@ -8,5 +8,8 @@ data "terraform_remote_state" "core_platform" {
     region       = module.context.state.region
     encrypt      = true
     use_lockfile = true
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
 }

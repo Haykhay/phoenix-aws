@@ -313,7 +313,7 @@ required with more, and disappears once those consumers index `clusters` by name
 
 **Needs:**
 
-- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
 - `core-network` for the same environment and region (the plan fails without it).
 - With `spec.observability.enabled: true`: `observability` in `<group>-shared`, same region.
 - Your admin principals for `spec.clusters.<key>.access_entries` (who gets `kubectl` access).
@@ -322,7 +322,7 @@ required with more, and disappears once those consumers index `clusters` by name
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

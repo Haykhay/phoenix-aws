@@ -122,10 +122,13 @@ locals {
       }
     },
   )
+  # Plus the pipeline's deploy role (deploy_role_name): k8s-installs reaches
+  # the clusters core-platform creates through it.
   default_admin_role_names = toset([
     "DevOps",
     "DevOpsLead",
     "SolutionArchitect",
+    module.context.role_name,
   ])
 
   ownership_tags = {
@@ -178,7 +181,7 @@ locals {
       {
         for role_name in local.admin_role_names[name] :
         role_name => {
-          principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${role_name}"
+          principal_arn = "arn:aws:iam::${module.context.account_id}:role/${role_name}"
           policy_associations = {
             admin = {
               policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
@@ -227,7 +230,7 @@ locals {
   access_entry_conflicts = {
     for name, cluster in local.clusters : name => setintersection(
       toset(concat(
-        [for role_name in local.admin_role_names[name] : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${role_name}"],
+        [for role_name in local.admin_role_names[name] : "arn:aws:iam::${module.context.account_id}:role/${role_name}"],
         values(try(cluster.access_entries.admin, {})),
         keys(try(cluster.access_entries.admin, {})),
         local.admin_role_names[name],

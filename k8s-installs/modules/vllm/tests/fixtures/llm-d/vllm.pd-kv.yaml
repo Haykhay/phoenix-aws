@@ -6,6 +6,7 @@ tier: sandbox
 region: eu-west-1
 cluster: "1"
 account_id: "111111111111"
+deploy_role_name: deploy-role
 module_ref: main
 state:
   bucket: acme-tfstate-111111111111

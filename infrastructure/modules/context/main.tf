@@ -1,11 +1,15 @@
 locals {
   config = yamldecode(file(var.config_file))
 
-  # Every account has a deploy role of this one name (created by account
-  # vending), so a cross-account reference is only an account ID:
-  # arn:aws:iam::<account id>:role/<role_name>.
-  role_name = "Terraform-Role"
-  spec      = try(local.config.spec, {})
+  # The pipeline signs in as an OIDC role (oidc_role_arn, read by the workflow)
+  # and assumes the deploy role in each account it touches. The deploy role has
+  # one name in every workload account, set by Backstage (deploy_role_name), so
+  # a cross-account reference is only an account ID:
+  # arn:aws:iam::<account id>:role/<deploy_role_name>.
+  role_name       = try(tostring(local.config.deploy_role_name), "")
+  role_name_valid = can(regex("^[\\w+=,.@-]{1,64}$", local.role_name))
+  deploy_role_arn = "arn:aws:iam::${tostring(local.config.account_id)}:role/${local.role_name}"
+  spec            = try(local.config.spec, {})
 
   organisation = local.config.organisation
   group        = local.config.group
@@ -130,6 +134,9 @@ data "terraform_remote_state" "core_network" {
     bucket = local.state.bucket
     region = local.state.region
     key    = "${local.env_id}/${local.scope}/core-network/terraform.tfstate"
+    assume_role = {
+      role_arn = local.deploy_role_arn
+    }
   }
 
   defaults = {}

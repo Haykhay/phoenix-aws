@@ -5,6 +5,9 @@ data "terraform_remote_state" "model_cache" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/model-cache.${local.cluster_key}/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }

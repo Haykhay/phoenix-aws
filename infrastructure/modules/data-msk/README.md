@@ -179,14 +179,14 @@ Services that were using the old SCRAM credentials need to:
 
 **Needs:**
 
-- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
 - `core-network` (the plan fails without it).
 - `core-platform`, so the clusters' node security group may connect.
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

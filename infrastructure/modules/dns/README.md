@@ -30,7 +30,7 @@ Values only, under `spec` in the unit's YAML:
 spec:
   providers:
     management:                   # delegated admin account holding the parent zones
-      account_id: "444444444444"  # only the ID: its role is always Terraform-Role
+      account_id: "444444444444"  # only the ID: its role is the deploy role (deploy_role_name)
   zones:
     zone-1:
       public_zone_name: env1.example.com
@@ -43,8 +43,8 @@ spec:
 The **management account** is the delegated admin account that owns the parent
 zones — not the AWS Organizations management account. Only its ID is given:
 the role is always that account's deploy role,
-`arn:aws:iam::<account_id>:role/Terraform-Role` (`modules/context`, `role_name`),
-assumed from the pipeline's own credentials (provider alias `aws.management`) to
+`arn:aws:iam::<account_id>:role/<deploy_role_name>` (`modules/context`, `role_name`),
+assumed from the pipeline's own credentials (the OIDC role) (provider alias `aws.management`) to
 write the delegation record. The plan fails if a zone is delegated without it,
 or if the ID is not 12 digits.
 
@@ -148,13 +148,13 @@ zone names in keycloak and cloudnative-pg-cluster. New consumers should index
 
 **Needs:**
 
-- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
-- Delegated zones only: the management account holding the parent zones (`spec.providers.management.account_id`) and its `Terraform-Role`; for an apex domain set `delegate_public_zone: false` instead.
+- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
+- Delegated zones only: the management account holding the parent zones (`spec.providers.management.account_id`) and its deploy role (`deploy_role_name`); for an apex domain set `delegate_public_zone: false` instead.
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file
