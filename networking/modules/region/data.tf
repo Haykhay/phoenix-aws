@@ -8,6 +8,9 @@ data "terraform_remote_state" "ipam" {
     region     = module.context.state.region
     kms_key_id = module.context.state.kms_key_id
     key        = "platform-network/global/ipam/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
 
   defaults = {}

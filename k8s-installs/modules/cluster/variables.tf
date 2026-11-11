@@ -7,6 +7,11 @@ variable "state" {
   })
 }
 
+variable "role_arn" {
+  description = "Deploy role in the account (module.context.deploy_role_arn): the state reads assume it."
+  type        = string
+}
+
 variable "env_id" {
   description = "infrastructure environment (module.context.env_id)."
   type        = string

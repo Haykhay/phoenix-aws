@@ -30,6 +30,7 @@ module "cluster" {
   source = "../cluster"
 
   state    = module.context.state
+  role_arn = module.context.deploy_role_arn
   env_id   = module.context.env_id
   region   = module.context.region
   cluster  = module.context.config.cluster

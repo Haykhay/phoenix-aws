@@ -34,6 +34,9 @@ data "terraform_remote_state" "core_network" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/core-network/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }
@@ -44,6 +47,9 @@ data "terraform_remote_state" "core_platform" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/core-platform/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }
@@ -54,6 +60,9 @@ data "terraform_remote_state" "model_store" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${module.context.group}-shared/${local.region}/model-store/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }

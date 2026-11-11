@@ -7,6 +7,9 @@ data "terraform_remote_state" "observability" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${module.context.group}-${local.config.observability_environment}/${local.region}/observability/terraform.tfstate"
+    assume_role = {
+      role_arn = module.context.deploy_role_arn
+    }
   }
   defaults = {}
 }

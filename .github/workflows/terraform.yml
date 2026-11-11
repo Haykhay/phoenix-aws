@@ -47,9 +47,6 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TERRAFORM_VERSION: "~1.15.0"
-  # Every account's deploy role has this name (modules/context, role_name);
-  # only the account ID varies.
-  ROLE_NAME: Terraform-Role
 
 jobs:
   # Which units and modules this run covers, and where each unit runs.
@@ -204,12 +201,23 @@ jobs:
 
           account_id=$(y .account_id)
           [[ "$account_id" =~ ^[0-9]{12}$ ]] || err "account_id must be 12 digits"
+
+          # Two roles, both named by Backstage in the unit: the OIDC role this
+          # job signs in as, and the deploy role it assumes in every account the
+          # unit touches (one name in every workload account; modules/context).
+          oidc_role_arn=$(y '.oidc_role_arn // ""')
+          [[ "$oidc_role_arn" =~ ^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$ ]] \
+            || err "oidc_role_arn is required: the role this job signs in as (Backstage writes it from the account entity's phoenix/oidc-role-arn)"
+          deploy_role_name=$(y '.deploy_role_name // ""')
+          [[ "$deploy_role_name" =~ ^[A-Za-z0-9+=,.@_-]{1,64}$ ]] \
+            || err "deploy_role_name is required: the role assumed in each account (Backstage writes it from the account entity's phoenix/deploy-role-name)"
           {
             echo "action=$ACTION"
             echo "project=$project"
             echo "resource_set=$rs"
             echo "module_ref=$(y '.module_ref // "main"')"
-            echo "role_arn=arn:aws:iam::$account_id:role/$ROLE_NAME"
+            echo "oidc_role_arn=$oidc_role_arn"
+            echo "deploy_role_arn=arn:aws:iam::$account_id:role/$deploy_role_name"
             echo "aws_region=$(y '.region // .global_region // "us-east-1"')"
             echo "state_bucket=$(y .state.bucket)"
             echo "state_region=$(y .state.region)"
@@ -231,20 +239,33 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ steps.unit.outputs.role_arn }}
+          role-to-assume: ${{ steps.unit.outputs.oidc_role_arn }}
           role-session-name: gha-${{ github.run_id }}-${{ steps.unit.outputs.resource_set }}
           aws-region: ${{ steps.unit.outputs.aws_region }}
 
       - name: terraform init
         working-directory: src/${{ steps.unit.outputs.project }}/modules/${{ steps.unit.outputs.resource_set }}
+        # The state lives in the unit's account: the backend assumes its deploy
+        # role, as the providers and state reads do. A file, because assume_role
+        # is an object.
+        env:
+          STATE_BUCKET: ${{ steps.unit.outputs.state_bucket }}
+          STATE_KEY: ${{ steps.unit.outputs.state_key }}
+          STATE_REGION: ${{ steps.unit.outputs.state_region }}
+          STATE_KMS_KEY_ID: ${{ steps.unit.outputs.state_kms_key_id }}
+          DEPLOY_ROLE_ARN: ${{ steps.unit.outputs.deploy_role_arn }}
         run: |
-          terraform init \
-            -backend-config="bucket=${{ steps.unit.outputs.state_bucket }}" \
-            -backend-config="key=${{ steps.unit.outputs.state_key }}" \
-            -backend-config="region=${{ steps.unit.outputs.state_region }}" \
-            -backend-config="encrypt=true" \
-            -backend-config="use_lockfile=true" \
-            ${{ steps.unit.outputs.state_kms_key_id != '' && format('-backend-config="kms_key_id={0}"', steps.unit.outputs.state_kms_key_id) || '' }}
+          backend="$RUNNER_TEMP/backend.hcl"
+          {
+            printf 'bucket       = "%s"\n' "$STATE_BUCKET"
+            printf 'key          = "%s"\n' "$STATE_KEY"
+            printf 'region       = "%s"\n' "$STATE_REGION"
+            printf 'encrypt      = true\n'
+            printf 'use_lockfile = true\n'
+            if [ -n "$STATE_KMS_KEY_ID" ]; then printf 'kms_key_id   = "%s"\n' "$STATE_KMS_KEY_ID"; fi
+            printf 'assume_role = {\n  role_arn = "%s"\n}\n' "$DEPLOY_ROLE_ARN"
+          } > "$backend"
+          terraform init -backend-config="$backend"
 
       - name: terraform ${{ steps.unit.outputs.action }}
         working-directory: src/${{ steps.unit.outputs.project }}/modules/${{ steps.unit.outputs.resource_set }}

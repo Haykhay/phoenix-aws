@@ -50,7 +50,7 @@ spec:
   vpc_netmask: 20                  # the platform's size for this tier, copied by Backstage
   providers:
     network:
-      account_id: "<networking account id>"   # role: its Terraform-Role
+      account_id: "<networking account id>"   # role: its deploy role (deploy_role_name)
       state_bucket: <networking account state bucket>
       state_region: <its region>
       state_kms_key_id: <key id>   # optional
@@ -222,10 +222,11 @@ replaced and the interface endpoints are updated to point at the new one.
 ## Joining the region's network
 
 The transit gateways, their route tables and the peerings belong to the
-networking account (`networking/` layer). This module runs with the workload
-account's credentials and reaches the networking account through the
-`aws.network` provider (its deploy role,
-`arn:aws:iam::<spec.providers.network.account_id>:role/Terraform-Role`), which
+networking account (`networking/` layer). This module runs as the workload
+account's deploy role and reaches the networking account through the
+`aws.network` provider (the networking account's deploy role,
+`arn:aws:iam::<spec.providers.network.account_id>:role/<deploy_role_name>`,
+assumed from the pipeline's OIDC role), which
 makes the associations and propagations.
 
 It reads the region's facts from the networking state:
@@ -270,14 +271,14 @@ load balancers.
 
 **Needs:**
 
-- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
 - The region's network: the networking `region` unit applied in this region (Backstage does it on the region's first environment).
 - The networking account (`spec.providers.network.account_id` and `.state_bucket`) and the platform settings (`spec.network`).
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

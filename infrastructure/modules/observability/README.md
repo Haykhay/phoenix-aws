@@ -84,13 +84,13 @@ terraform init -backend=false && terraform test
 
 **Needs:**
 
-- The group's AWS account, its `Terraform-Role` and its state bucket (account vending).
+- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
 - `tags.LongLive: true` (the plan fails without it): it outlives every sandbox. Usually applied once per group and region in `<group>-shared`.
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials for `Terraform-Role` in the unit's account (account vending creates it), and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

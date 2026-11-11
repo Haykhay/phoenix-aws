@@ -15,3 +15,4 @@ Decisions behind Phoenix on AWS, one file each. Status: all **Accepted** (2026-1
 | [0009](0009-verify-offline-before-deploying.md) | Verify offline before deploying |
 | [0010](0010-teardown-is-a-normal-operation.md) | Teardown is a normal operation |
 | [0011](0011-global-metrics-in-a-management-cluster.md) | Global metrics in a management cluster |
+| [0012](0012-two-pipeline-roles-named-by-backstage.md) | Two pipeline roles, named by Backstage |

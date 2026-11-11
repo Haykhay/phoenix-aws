@@ -181,3 +181,15 @@ run "personal_environment_names_fit" {
     error_message = "a personal environment's cluster plans with its full name"
   }
 }
+
+run "deploy_role_is_cluster_admin" {
+  command = plan
+
+  assert {
+    condition = alltrue([for key, entries in local.access_entries : alltrue([
+      try(entries["deploy-role"].principal_arn, "") == "arn:aws:iam::${module.context.account_id}:role/deploy-role",
+      try(entries["deploy-role"].policy_associations.admin.policy_arn, "") == "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy",
+    ])]) && length(local.access_entries) > 0
+    error_message = "the pipeline's deploy role is cluster-admin on every cluster it creates, so k8s-installs can reach them"
+  }
+}

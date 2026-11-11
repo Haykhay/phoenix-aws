@@ -23,8 +23,9 @@ workflow runs plain Terraform for each, in order.
 2. **Workload form** → `k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml`,
    one per component the chosen options need. Versions and sizes are the
    platform's, never the form's.
-3. **Workflow** → checks each file's path against its contents, assumes
-   `arn:aws:iam::<account_id>:role/Terraform-Role`, and plans (pull requests)
+3. **Workflow** → checks each file's path against its contents, signs in as
+   the unit's OIDC role (`oidc_role_arn`), assumes its deploy role
+   (`deploy_role_name`) in each account the unit touches (ADR-0012), and plans (pull requests)
    or applies/destroys (dispatched by Backstage from `main`). Cluster units run
    on a self-hosted runner in the management VPC; EKS endpoints are private.
 
@@ -42,12 +43,12 @@ Verification so far:
 - The workflow's own steps tested against path and pull-request cases;
   `actionlint` clean.
 
-Still to build before going live: account vending (StackSets, account
-registry), the networking foundation (IPAM pools, transit gateway, management
-VPC), and the orchestrator that runs units in order and notifies the
-requester. Before the pipeline is connected to AWS, pull-request plans move to
-a read-only `Terraform-Plan-Role` (apply/destroy keep `Terraform-Role`, trusted
-only from `main`), and the self-hosted runner is registered as described in
+Still to build before going live: the orchestrator that runs units in order
+and notifies the requester. The networking layer (`networking/`: IPAM, hubs and
+transit gateways, peering, hybrid) is built and verified offline. Accounts and
+the two pipeline roles are created outside this repository (ADR-0012); before
+the pipeline is connected to AWS their names go into the account registry
+(`phoenix/oidc-role-arn`, `phoenix/deploy-role-name`), and the self-hosted runner is registered as described in
 [`k8s-installs/README.md`](k8s-installs/README.md#how-it-runs). Images will be routed through each account's ECR pull-through
 cache once the tooling account exists.
 

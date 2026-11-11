@@ -35,7 +35,7 @@ Chart `1.21.1`, pinned. The plan fails clearly without the environment's dns uni
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15 and the `aws` CLI: the helm and kubernetes providers fetch an EKS token per call (`aws eks get-token`).
-- Credentials for `Terraform-Role` in the unit's account, and the account's state bucket.
+- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
 - Network reach to the cluster's **private** API endpoint: in the pipeline that is the `phoenix-mgmt` self-hosted runner in the management VPC.
 
 ### The unit file

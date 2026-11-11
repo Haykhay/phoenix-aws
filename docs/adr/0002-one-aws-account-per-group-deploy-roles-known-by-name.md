@@ -1,6 +1,6 @@
 # ADR-0002: One AWS account per group; deploy roles known by name
 
-Status: Accepted · 2026-10-25
+Status: Accepted · 2026-10-25 · Roles amended by [ADR-0012](0012-two-pipeline-roles-named-by-backstage.md)
 
 ## Context
 

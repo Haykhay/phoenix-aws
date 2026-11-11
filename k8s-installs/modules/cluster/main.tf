@@ -8,6 +8,9 @@ data "terraform_remote_state" "core_platform" {
     bucket = var.state.bucket
     region = var.state.region
     key    = "${var.env_id}/${var.region}/core-platform/terraform.tfstate"
+    assume_role = {
+      role_arn = var.role_arn
+    }
   }
   defaults = {}
 }
@@ -18,6 +21,9 @@ data "terraform_remote_state" "dns" {
     bucket = var.state.bucket
     region = var.state.region
     key    = "${var.env_id}/global/dns/terraform.tfstate"
+    assume_role = {
+      role_arn = var.role_arn
+    }
   }
   defaults = {}
 }

@@ -70,11 +70,13 @@ spec:                              # the resource set's own settings
     "1": { ... }
 ```
 
-**Roles are known by name; only account IDs vary.** Every account's deploy role
-is `Terraform-Role` (created by account vending). The workflow assumes
-`arn:aws:iam::<account_id>:role/Terraform-Role`; cross-account references in
+**Two roles, named by Backstage; only account IDs vary** (ADR-0012). The
+pipeline signs in as the unit's OIDC role (`oidc_role_arn`) and assumes the
+deploy role (`deploy_role_name`, one name in every workload account) in each
+account it touches: the backend, every provider and every state read assume
+`arn:aws:iam::<account_id>:role/<deploy_role_name>`. Cross-account references in
 `spec` are just account IDs (`spec.providers.management.account_id`,
-`spec.providers.network.account_id`). Backstage only ever passes account IDs.
+`spec.providers.network.account_id`).
 
 ## Resource sets
 
@@ -121,8 +123,8 @@ gone still plans.
 | `pull_request` changing `infrastructure/modules/**` | `terraform test` of every changed module (mock providers, no AWS) |
 
 Per unit it checks that the path matches the YAML (tier, env_id, region),
-checks out the modules at `module_ref`, assumes the account's
-`Terraform-Role` over GitHub OIDC, runs `terraform init` with the S3 backend
+checks out the modules at `module_ref`, signs in as the unit's OIDC role over
+GitHub OIDC, runs `terraform init` with the S3 backend (assuming the deploy role)
 from the YAML (key `<env_id>/<scope>/<resource-set>/terraform.tfstate`,
 lockfile, encryption) and runs the action. One run per unit at a time
 (`concurrency`). Removing a unit is a `destroy` Backstage dispatches before it
@@ -155,7 +157,7 @@ See [`modules/ecr`](modules/ecr/README.md).
 
 ## Lives elsewhere
 
-- Account vending, state buckets, `Terraform-Role` in every account (StackSets).
+- Accounts, state buckets, the OIDC role and the deploy role in every account (ADR-0012).
 - Backstage: forms, constants, ordering, schedules, idle detection, approvals.
 - The central ECR hub and the Artifactory sync.
 - Everything inside the clusters: [`../k8s-installs`](../k8s-installs/README.md) (Grafana stack, vLLM, Langfuse, GPU operator, ...).

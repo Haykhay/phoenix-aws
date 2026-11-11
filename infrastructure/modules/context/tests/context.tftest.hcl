@@ -31,8 +31,8 @@ run "regional_identity" {
     error_message = "ResourceSet tag carries the resource set"
   }
   assert {
-    condition     = output.role_name == "Terraform-Role"
-    error_message = "every account's deploy role has one known name; only the account ID varies"
+    condition     = output.role_name == "deploy-role" && output.deploy_role_arn == "arn:aws:iam::111111111111:role/deploy-role"
+    error_message = "the deploy role is named in the unit (Backstage writes it), one name in every account; its ARN is in the unit's account"
   }
   assert {
     condition     = !contains(keys(output.tags), "Requester")
@@ -277,4 +277,24 @@ run "region_netmask_inside_segment" {
   }
 
   expect_failures = [output.platform_network]
+}
+
+run "deploy_role_required" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/no_deploy_role.yaml"
+  }
+
+  expect_failures = [output.deploy_role_arn]
+}
+
+run "deploy_role_name_validated" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/bad_deploy_role.yaml"
+  }
+
+  expect_failures = [output.deploy_role_arn]
 }
