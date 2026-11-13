@@ -139,3 +139,18 @@ output "pipeline_user" {
   description = "Who ran the pipeline (GITHUB_ACTOR)."
   value       = var.pipeline_user
 }
+
+output "floci" {
+  description = "True only for an explicit local Floci overlay; never committed for live units."
+  value       = local.floci
+
+  precondition {
+    condition     = !local.floci || (local.tier == "sandbox" && can(regex("^http://(localhost|127\\.0\\.0\\.1|floci)(:[0-9]+)?$", local.aws_endpoint_url)))
+    error_message = "Floci mode is sandbox-only and its endpoint must be local (localhost, 127.0.0.1, or floci)."
+  }
+}
+
+output "aws_endpoint_url" {
+  description = "Local Floci endpoint, null for live AWS."
+  value       = local.aws_endpoint_url
+}

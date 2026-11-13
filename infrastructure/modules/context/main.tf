@@ -6,10 +6,12 @@ locals {
   # one name in every workload account, set by Backstage (deploy_role_name), so
   # a cross-account reference is only an account ID:
   # arn:aws:iam::<account id>:role/<deploy_role_name>.
-  role_name       = try(tostring(local.config.deploy_role_name), "")
-  role_name_valid = can(regex("^[\\w+=,.@-]{1,64}$", local.role_name))
-  deploy_role_arn = "arn:aws:iam::${tostring(local.config.account_id)}:role/${local.role_name}"
-  spec            = try(local.config.spec, {})
+  role_name        = try(tostring(local.config.deploy_role_name), "")
+  role_name_valid  = can(regex("^[\\w+=,.@-]{1,64}$", local.role_name))
+  deploy_role_arn  = "arn:aws:iam::${tostring(local.config.account_id)}:role/${local.role_name}"
+  spec             = try(local.config.spec, {})
+  floci            = try(local.config.floci == true, false)
+  aws_endpoint_url = local.floci ? try(tostring(local.config.aws_endpoint_url), "http://localhost:4566") : null
 
   organisation = local.config.organisation
   group        = local.config.group

@@ -1,5 +1,10 @@
 name: terraform
 
+run-name: >-
+  terraform ${{ inputs.action || 'plan' }}
+  ${{ inputs.config_file || github.ref_name }}
+  ${{ inputs.orchestration_id && format('[{0}]', inputs.orchestration_id) || '' }}
+
 # One run = one unit = one YAML file, path relative to the repo root:
 #   infrastructure/environments/<tier>/<env_id>/<scope>/<resource-set>.yaml
 #   k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml
@@ -28,6 +33,10 @@ on:
       - "networking/modules/**"
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: "Unique Backstage orchestration attempt ID used to correlate this run"
+        required: true
+        type: string
       config_file:
         description: "Unit YAML from the repo root, e.g. infrastructure/environments/sandbox/research-sandbox-jdoe/eu-west-1/core-platform.yaml"
         required: true
@@ -62,12 +71,16 @@ jobs:
       - id: diff
         env:
           CONFIG_FILE: ${{ inputs.config_file }}
+          ORCHESTRATION_ID: ${{ inputs.orchestration_id }}
           BASE_REF: ${{ github.base_ref }}
           REPO: ${{ github.repository }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [[ "$ORCHESTRATION_ID" =~ ^[A-Za-z0-9._:-]+$ ]] || {
+              echo "::error::orchestration_id has unsupported characters"; exit 1;
+            }
             files="$CONFIG_FILE"; modules=""
           else
             base="origin/$BASE_REF"
