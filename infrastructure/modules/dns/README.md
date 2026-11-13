@@ -28,9 +28,6 @@ Values only, under `spec` in the unit's YAML:
 
 ```yaml
 spec:
-  providers:
-    management:                   # delegated admin account holding the parent zones
-      account_id: "444444444444"  # only the ID: its role is the deploy role (deploy_role_name)
   zones:
     zone-1:
       public_zone_name: env1.example.com
@@ -40,13 +37,9 @@ spec:
       internal_zone_name: env2.internal.example.com
 ```
 
-The **management account** is the delegated admin account that owns the parent
-zones — not the AWS Organizations management account. Only its ID is given:
-the role is always that account's deploy role,
-`arn:aws:iam::<account_id>:role/<deploy_role_name>` (`modules/context`, `role_name`),
-assumed from the pipeline's own credentials (the OIDC role) (provider alias `aws.management`) to
-write the delegation record. The plan fails if a zone is delegated without it,
-or if the ID is not 12 digits.
+The parent zones belong to another account. This unit writes nothing there:
+the `delegations` output gives, per delegated zone, the parent zone, the name
+and the name servers, and the orchestrator adds the NS record (ADR-0013).
 
 | Key | Default | Notes |
 |---|---|---|
@@ -148,13 +141,12 @@ zone names in keycloak and cloudnative-pg-cluster. New consumers should index
 
 **Needs:**
 
-- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
-- Delegated zones only: the management account holding the parent zones (`spec.providers.management.account_id`) and its deploy role (`deploy_role_name`); for an apex domain set `delegate_public_zone: false` instead.
+- The group's AWS account (signed in as its `Terraform-Role`; ADR-0013) and its state bucket.
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

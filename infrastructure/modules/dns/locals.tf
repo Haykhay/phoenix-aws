@@ -1,17 +1,11 @@
 locals {
   defaults = {
     # The YAML file existing enables the unit; `enabled: false` is a kill switch.
-    enabled   = true
-    zones     = {}
-    providers = {}
+    enabled = true
+    zones   = {}
   }
 
   config = merge(local.defaults, module.context.spec)
-
-  # Delegated admin account holding the parent zones (providers.tf,
-  # aws.management). Only its ID is configured; the role name is fixed.
-  management_account_id = try(tostring(local.config.providers.management.account_id), null)
-  management_role_arn   = local.management_account_id == null ? null : "arn:aws:iam::${local.management_account_id}:role/${module.context.role_name}"
 
   zones = local.config.enabled ? {
     for key, zone in local.config.zones : key => {

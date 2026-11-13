@@ -29,13 +29,5 @@ resource "terraform_data" "validation" {
       ])
       error_message = "A zone used for both roles (internal_zone_name == public_zone_name) sets internal_zone_exists differently from public_zone_exists; public_zone_exists alone decides create vs adopt, so drop internal_zone_exists or make them match."
     }
-    precondition {
-      condition     = length(local.zones_delegate) == 0 || local.management_account_id != null
-      error_message = "A zone is delegated into its parent (delegate_public_zone defaults to true) but spec.providers.management.account_id (the delegated admin account holding the parent zones) is not set. Set it, or set delegate_public_zone: false for an apex domain."
-    }
-    precondition {
-      condition     = local.management_account_id == null || can(regex("^[0-9]{12}$", local.management_account_id))
-      error_message = "spec.providers.management.account_id must be a 12-digit AWS account ID (quote it in YAML)."
-    }
   }
 }

@@ -52,13 +52,13 @@ tags:
 
 **Needs:**
 
-- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
+- The group's AWS account (signed in as its `Terraform-Role`; ADR-0013) and its state bucket.
 - `tags.LongLive: true` (the plan fails without it): the weights outlive every environment. Usually applied once per group and region in `<group>-shared`.
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

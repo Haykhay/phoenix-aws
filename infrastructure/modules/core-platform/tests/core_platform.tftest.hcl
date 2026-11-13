@@ -182,14 +182,17 @@ run "personal_environment_names_fit" {
   }
 }
 
-run "deploy_role_is_cluster_admin" {
+run "baseline_roles_are_admins" {
   command = plan
 
   assert {
     condition = alltrue([for key, entries in local.access_entries : alltrue([
-      try(entries["deploy-role"].principal_arn, "") == "arn:aws:iam::${module.context.account_id}:role/deploy-role",
-      try(entries["deploy-role"].policy_associations.admin.policy_arn, "") == "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy",
+      try(entries["Terraform-Role"].principal_arn, "") == "arn:aws:iam::${module.context.account_id}:role/Terraform-Role",
+      try(entries["Terraform-Role"].policy_associations.admin.policy_arn, "") == "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy",
+      try(entries["Terraform-Plan-Role"].principal_arn, "") == "arn:aws:iam::${module.context.account_id}:role/Terraform-Plan-Role",
+      try(entries["Terraform-Plan-Role"].policy_associations.view.policy_arn, "") == "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminViewPolicy",
+      !contains(keys(entries), "deploy-role"),
     ])]) && length(local.access_entries) > 0
-    error_message = "the pipeline's deploy role is cluster-admin on every cluster it creates, so k8s-installs can reach them"
+    error_message = "Terraform-Role is cluster-admin and Terraform-Plan-Role reads everything (Helm release secrets too) on every cluster; no deploy role"
   }
 }

@@ -31,10 +31,6 @@ run "regional_identity" {
     error_message = "ResourceSet tag carries the resource set"
   }
   assert {
-    condition     = output.role_name == "deploy-role" && output.deploy_role_arn == "arn:aws:iam::111111111111:role/deploy-role"
-    error_message = "the deploy role is named in the unit (Backstage writes it), one name in every account; its ARN is in the unit's account"
-  }
-  assert {
     condition     = output.floci == false && output.aws_endpoint_url == null
     error_message = "normal units always retain live AWS provider behavior"
   }
@@ -296,22 +292,13 @@ run "region_netmask_inside_segment" {
   expect_failures = [output.platform_network]
 }
 
-run "deploy_role_required" {
+# The job signs in to the unit's own account (Terraform-Role or
+# Terraform-Plan-Role); there is no deploy role to name.
+run "no_role_outputs" {
   command = plan
 
-  variables {
-    config_file = "tests/fixtures/no_deploy_role.yaml"
+  assert {
+    condition     = output.state_key == "research-sandbox/eu-west-1/core-platform/terraform.tfstate"
+    error_message = "a unit names no role: the job signs in to its own account"
   }
-
-  expect_failures = [output.deploy_role_arn]
-}
-
-run "deploy_role_name_validated" {
-  command = plan
-
-  variables {
-    config_file = "tests/fixtures/bad_deploy_role.yaml"
-  }
-
-  expect_failures = [output.deploy_role_arn]
 }

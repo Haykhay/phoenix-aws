@@ -1,11 +1,10 @@
 mock_provider "aws" {}
 
 variables {
-  state    = { bucket = "acme-tfstate-111111111111", region = "eu-west-1" }
-  role_arn = "arn:aws:iam::111111111111:role/deploy-role"
-  env_id   = "research-sandbox"
-  region   = "eu-west-1"
-  cluster  = "1"
+  state   = { bucket = "acme-tfstate-111111111111", region = "eu-west-1" }
+  env_id  = "research-sandbox"
+  region  = "eu-west-1"
+  cluster = "1"
 }
 
 override_data {
@@ -106,5 +105,20 @@ run "dns_optional" {
   assert {
     condition     = output.dns == null
     error_message = "an environment without a dns unit gives dns = null, not an error"
+  }
+}
+
+# Providers sign in to the cluster with the job's own credentials
+# (Terraform-Role or Terraform-Plan-Role): no --role-arn.
+run "exec_without_role_arn" {
+  command = plan
+
+  assert {
+    condition     = output.exec.command == "aws" && output.exec.args == ["eks", "get-token", "--cluster-name", "research-sandbox-euw1-1-eks", "--region", "eu-west-1", "--output", "json"]
+    error_message = "exec is aws eks get-token for the cluster and region, with no --role-arn"
+  }
+  assert {
+    condition     = output.exec.api_version == "client.authentication.k8s.io/v1beta1"
+    error_message = "exec uses the v1beta1 client authentication API"
   }
 }

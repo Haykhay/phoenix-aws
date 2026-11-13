@@ -23,9 +23,9 @@ workflow runs plain Terraform for each, in order.
 2. **Workload form** → `k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml`,
    one per component the chosen options need. Versions and sizes are the
    platform's, never the form's.
-3. **Workflow** → checks each file's path against its contents, signs in as
-   the unit's OIDC role (`oidc_role_arn`), assumes its deploy role
-   (`deploy_role_name`) in each account the unit touches (ADR-0012), and plans (pull requests)
+3. **Workflow** → checks each file's path against its contents, signs in to
+   the unit's own account over GitHub OIDC (`Terraform-Plan-Role` for pull
+   requests, `Terraform-Role` from `main`; ADR-0013), and plans (pull requests)
    or applies/destroys (dispatched by Backstage from `main`). Cluster units run
    on a self-hosted runner in the management VPC; EKS endpoints are private.
 

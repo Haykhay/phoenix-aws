@@ -53,3 +53,12 @@ output "dns_zones" {
   value       = try(data.terraform_remote_state.dns.outputs.zones, {})
 }
 
+
+output "exec" {
+  description = "Kubernetes/Helm provider exec block: a fresh token per call, signed with the job's own credentials (Terraform-Role or Terraform-Plan-Role)."
+  value = {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", var.region, "--output", "json"]
+  }
+}

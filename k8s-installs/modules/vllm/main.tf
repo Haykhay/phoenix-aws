@@ -8,9 +8,6 @@ data "terraform_remote_state" "istio" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/istio/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }
@@ -21,9 +18,6 @@ data "terraform_remote_state" "gpu_pool" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/karpenter-nodepool.${coalesce(local.config.gpu, "none")}/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }
@@ -35,9 +29,6 @@ data "terraform_remote_state" "weights" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/model-weights.${local.slug}/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }
@@ -49,9 +40,6 @@ data "terraform_remote_state" "fsx" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/aws-fsx-csi-driver/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }
@@ -64,9 +52,6 @@ data "terraform_remote_state" "core_network" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/core-network/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }
@@ -78,9 +63,6 @@ data "terraform_remote_state" "llm_d" {
     bucket = module.context.state.bucket
     region = module.context.state.region
     key    = "${local.environment}/${local.region}/k8s/${local.cluster_key}/llm-d/terraform.tfstate"
-    assume_role = {
-      role_arn = module.context.deploy_role_arn
-    }
   }
   defaults = {}
 }

@@ -46,11 +46,11 @@ run "sandbox_is_non_production" {
     error_message = "sandbox: the region's non-production pool, /20"
   }
   assert {
-    condition     = aws_ec2_transit_gateway_route_table_association.this["vpc-1"].transit_gateway_route_table_id == "tgw-rtb-nonprod"
+    condition     = output.tgw_links["vpc-1"].associate == "tgw-rtb-nonprod"
     error_message = "non-production VPCs are associated with the non-production table"
   }
   assert {
-    condition     = toset([for p in aws_ec2_transit_gateway_route_table_propagation.this : p.transit_gateway_route_table_id]) == toset(["tgw-rtb-nonprod", "tgw-rtb-shared"])
+    condition     = toset(output.tgw_links["vpc-1"].propagate) == toset(["tgw-rtb-nonprod", "tgw-rtb-shared"])
     error_message = "non-production propagates into its own table and shared, never production"
   }
   assert {
@@ -71,7 +71,7 @@ run "prod_is_production" {
     error_message = "prod: the production pool, /18"
   }
   assert {
-    condition     = aws_ec2_transit_gateway_route_table_association.this["vpc-1"].transit_gateway_route_table_id == "tgw-rtb-prod" && toset([for p in aws_ec2_transit_gateway_route_table_propagation.this : p.transit_gateway_route_table_id]) == toset(["tgw-rtb-prod", "tgw-rtb-shared"])
+    condition     = output.tgw_links["vpc-1"].associate == "tgw-rtb-prod" && toset(output.tgw_links["vpc-1"].propagate) == toset(["tgw-rtb-prod", "tgw-rtb-shared"])
     error_message = "production: associated with its table, propagates into its table and shared, never non-production"
   }
 }
@@ -84,11 +84,11 @@ run "tooling_is_shared" {
   }
 
   assert {
-    condition     = aws_vpc_ipam_pool_cidr_allocation.this["vpc-1"].ipam_pool_id == "ipam-pool-shared" && aws_ec2_transit_gateway_route_table_association.this["vpc-1"].transit_gateway_route_table_id == "tgw-rtb-shared"
+    condition     = aws_vpc_ipam_pool_cidr_allocation.this["vpc-1"].ipam_pool_id == "ipam-pool-shared" && output.tgw_links["vpc-1"].associate == "tgw-rtb-shared"
     error_message = "segment: shared takes the shared pool and table"
   }
   assert {
-    condition     = toset([for p in aws_ec2_transit_gateway_route_table_propagation.this : p.transit_gateway_route_table_id]) == toset(["tgw-rtb-prod", "tgw-rtb-nonprod", "tgw-rtb-shared"])
+    condition     = toset(output.tgw_links["vpc-1"].propagate) == toset(["tgw-rtb-prod", "tgw-rtb-nonprod", "tgw-rtb-shared"])
     error_message = "shared propagates into all three tables"
   }
 }

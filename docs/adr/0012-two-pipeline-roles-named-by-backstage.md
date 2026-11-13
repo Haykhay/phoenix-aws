@@ -1,6 +1,6 @@
 # ADR-0012: Two pipeline roles, named by Backstage
 
-Status: Accepted · 2026-11-11 · Amends [ADR-0002](0002-one-aws-account-per-group-deploy-roles-known-by-name.md)
+Status: Superseded by [ADR-0013](0013-sign-in-to-the-account-baseline-roles.md) · 2026-11-11 · Amends [ADR-0002](0002-one-aws-account-per-group-deploy-roles-known-by-name.md)
 
 ## Context
 

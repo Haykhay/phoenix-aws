@@ -155,3 +155,14 @@ output "resource_summary" {
     }
   }
 }
+
+output "tgw_links" {
+  description = "Per attached VPC: its transit gateway attachment, the segment table to associate it with, and the tables to propagate it into. The networking account makes these links (the orchestrator), not this unit."
+  value = {
+    for vpc_name, vpc in local.tgw_vpcs : vpc_name => {
+      attachment_id = aws_ec2_transit_gateway_vpc_attachment.this[vpc_name].id
+      associate     = try(local.region_state.route_table_ids[vpc.segment], null)
+      propagate     = [for table in local.propagated_tables[vpc.segment] : try(local.region_state.route_table_ids[table], null)]
+    }
+  }
+}

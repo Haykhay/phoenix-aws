@@ -50,7 +50,7 @@ spec:
   vpc_netmask: 20                  # the platform's size for this tier, copied by Backstage
   providers:
     network:
-      account_id: "<networking account id>"   # role: its deploy role (deploy_role_name)
+      account_id: "<networking account id>"
       state_bucket: <networking account state bucket>
       state_region: <its region>
       state_kms_key_id: <key id>   # optional
@@ -222,12 +222,12 @@ replaced and the interface endpoints are updated to point at the new one.
 ## Joining the region's network
 
 The transit gateways, their route tables and the peerings belong to the
-networking account (`networking/` layer). This module runs as the workload
-account's deploy role and reaches the networking account through the
-`aws.network` provider (the networking account's deploy role,
-`arn:aws:iam::<spec.providers.network.account_id>:role/<deploy_role_name>`,
-assumed from the pipeline's OIDC role), which
-makes the associations and propagations.
+networking account (`networking/` layer). This module runs in the workload
+account only: it creates the attachment, and the `tgw_links` output says, per
+VPC, which segment table to associate it with and which tables to propagate it
+into. The networking account makes those links (the orchestrator), never this
+unit (ADR-0013). Reading the networking state needs that bucket to allow the
+workload accounts' read.
 
 It reads the region's facts from the networking state:
 `spec.providers.network.state_bucket`, key
@@ -271,14 +271,14 @@ load balancers.
 
 **Needs:**
 
-- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
+- The group's AWS account (signed in as its `Terraform-Role`; ADR-0013) and its state bucket.
 - The region's network: the networking `region` unit applied in this region (Backstage does it on the region's first environment).
 - The networking account (`spec.providers.network.account_id` and `.state_bucket`) and the platform settings (`spec.network`).
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file
