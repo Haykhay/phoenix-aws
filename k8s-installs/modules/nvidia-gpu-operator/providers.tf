@@ -1,7 +1,13 @@
 provider "aws" {
-  region              = local.region
-  allowed_account_ids = [local.account_id]
-  assume_role { role_arn = module.context.deploy_role_arn }
+  region                      = local.region
+  allowed_account_ids         = module.context.floci ? null : [local.account_id]
+  skip_credentials_validation = module.context.floci
+  skip_requesting_account_id  = module.context.floci
+  skip_metadata_api_check     = module.context.floci
+  dynamic "assume_role" {
+    for_each = module.context.floci ? [] : [module.context.deploy_role_arn]
+    content { role_arn = assume_role.value }
+  }
 
   default_tags {
     tags = merge(

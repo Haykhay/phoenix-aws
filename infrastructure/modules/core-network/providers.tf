@@ -1,7 +1,13 @@
 provider "aws" {
-  region              = module.context.region
-  allowed_account_ids = [module.context.account_id]
-  assume_role { role_arn = module.context.deploy_role_arn }
+  region                      = module.context.region
+  allowed_account_ids         = module.context.floci ? null : [module.context.account_id]
+  skip_credentials_validation = module.context.floci
+  skip_requesting_account_id  = module.context.floci
+  skip_metadata_api_check     = module.context.floci
+  dynamic "assume_role" {
+    for_each = module.context.floci ? [] : [module.context.deploy_role_arn]
+    content { role_arn = assume_role.value }
+  }
 
   default_tags { tags = module.context.tags }
 
@@ -15,12 +21,15 @@ provider "aws" {
 # associations and propagations are made from it. `spec.providers.network.
 # account_id`; the role is that account's deploy role (module.context.role_name).
 provider "aws" {
-  alias               = "network"
-  region              = module.context.region
-  allowed_account_ids = local.network_account_id == null ? null : [local.network_account_id]
+  alias                       = "network"
+  region                      = module.context.region
+  allowed_account_ids         = module.context.floci || local.network_account_id == null ? null : [local.network_account_id]
+  skip_credentials_validation = module.context.floci
+  skip_requesting_account_id  = module.context.floci
+  skip_metadata_api_check     = module.context.floci
 
   dynamic "assume_role" {
-    for_each = local.network_role_arn == null ? [] : [local.network_role_arn]
+    for_each = module.context.floci || local.network_role_arn == null ? [] : [local.network_role_arn]
     content { role_arn = assume_role.value }
   }
 

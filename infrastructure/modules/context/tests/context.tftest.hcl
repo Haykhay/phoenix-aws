@@ -35,8 +35,25 @@ run "regional_identity" {
     error_message = "the deploy role is named in the unit (Backstage writes it), one name in every account; its ARN is in the unit's account"
   }
   assert {
+    condition     = output.floci == false && output.aws_endpoint_url == null
+    error_message = "normal units always retain live AWS provider behavior"
+  }
+  assert {
     condition     = !contains(keys(output.tags), "Requester")
     error_message = "Requester tag only appears when a requester is set"
+  }
+}
+
+run "floci_mode_is_explicit" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/floci.yaml"
+  }
+
+  assert {
+    condition     = output.floci == true && output.aws_endpoint_url == "http://localhost:4566"
+    error_message = "local mode and endpoint come only from an explicit Floci unit overlay"
   }
 }
 
