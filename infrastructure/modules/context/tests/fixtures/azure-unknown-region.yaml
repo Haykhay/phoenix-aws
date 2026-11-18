@@ -1,0 +1,20 @@
+cloud: azure
+organisation: acme
+group: research
+environment: sandbox
+tier: sandbox
+region: brazilsouth
+subscription_id: "00000000-0000-0000-0000-000000000001"
+azure:
+  tenant_id: "00000000-0000-0000-0000-0000000000aa"
+  client_id: "00000000-0000-0000-0000-0000000000bb"
+  principal_id: "00000000-0000-0000-0000-0000000000cc"
+module_ref: main
+state:
+  resource_group: rg-phoenix-state
+  storage_account: acmetfstateweu
+tags:
+  owner.team: research
+  Reason: model evaluation
+  LongLive: false
+spec: {}

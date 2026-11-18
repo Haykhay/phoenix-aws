@@ -49,13 +49,33 @@ output "region" {
 }
 
 output "account_id" {
-  description = "The unit's AWS account ID."
-  value       = tostring(local.config.account_id)
+  description = "The unit's AWS account ID; null on Azure."
+  value       = local.aws_cloud ? tostring(local.config.account_id) : null
+}
+
+output "cloud" {
+  description = "aws (default when the YAML has no cloud) or azure."
+  value       = local.cloud
+
+  precondition {
+    condition     = contains(["aws", "azure"], local.cloud)
+    error_message = "cloud must be aws or azure, not ${local.cloud}."
+  }
+}
+
+output "azure" {
+  description = "Azure identity {tenant_id, client_id, principal_id, subscription_id}; null on AWS."
+  value       = local.azure
 }
 
 output "region_code" {
-  description = "Short region code (euw1); null in the global scope."
+  description = "Short region code (euw1, weu); null in the global scope."
   value       = local.region_code
+
+  precondition {
+    condition     = local.region_valid
+    error_message = "region ${local.scope} has no short code on ${local.cloud}; Azure regions must be one of: ${join(", ", sort(keys(local.azure_region_codes)))}."
+  }
 }
 
 output "name_prefix" {
@@ -86,7 +106,7 @@ output "tags" {
 }
 
 output "state" {
-  description = "S3 backend settings shared by every unit of the account."
+  description = "Backend settings. AWS: {bucket, region, kms_key_id}, shared by the account. Azure: {subscription_id, resource_group, storage_account, container}, the environment's container."
   value       = local.state
 }
 
