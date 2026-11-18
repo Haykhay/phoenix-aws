@@ -8,6 +8,21 @@ locals {
   floci            = try(local.config.floci == true, false)
   aws_endpoint_url = local.floci ? try(tostring(local.config.aws_endpoint_url), "http://localhost:4566") : null
 
+  # aws (the default: a unit without `cloud` is AWS) or azure.
+  cloud       = try(local.config.cloud, "aws")
+  aws_cloud   = local.cloud == "aws"
+  azure_cloud = local.cloud == "azure"
+  cloud_valid = local.aws_cloud || local.azure_cloud
+
+  # Azure: the environment's managed identity (Backstage writes it from the
+  # environment entity) and its subscription. Null on AWS.
+  azure = local.azure_cloud ? {
+    tenant_id       = local.config.azure.tenant_id
+    client_id       = local.config.azure.client_id
+    principal_id    = try(local.config.azure.principal_id, null)
+    subscription_id = local.config.subscription_id
+  } : null
+
   organisation = local.config.organisation
   group        = local.config.group
   environment  = local.config.environment
@@ -19,9 +34,10 @@ locals {
   env_id = join("-", compact([local.group, local.environment, local.requester]))
 
   # A unit without a region is global (dns). Its provider still needs a region
-  # to call AWS; us-east-1 homes the global service endpoints.
+  # to call AWS; us-east-1 homes the global service endpoints. On Azure it is
+  # the location of the unit's resource group (westeurope unless global_region).
   scope  = try(local.config.region, null) == null ? "global" : local.config.region
-  region = local.scope == "global" ? try(local.config.global_region, "us-east-1") : local.scope
+  region = local.scope == "global" ? try(local.config.global_region, local.azure_cloud ? "westeurope" : "us-east-1") : local.scope
 
   # AWS region -> short code: the "A2" prefix AWS itself uses in AZ IDs
   # (euw1-az1). Full region names overrun tight identifier limits (an
@@ -34,11 +50,23 @@ locals {
     northeast = "ne", northwest = "nw", southeast = "se", southwest = "sw",
   }
   region_parts = split("-", local.scope)
-  region_code = local.scope == "global" ? null : join("", concat(
+  aws_region_code = local.scope == "global" || !local.aws_cloud ? null : join("", concat(
     [local.region_parts[0]],
     [for p in slice(local.region_parts, 1, length(local.region_parts) - 1) : local.directions[p]],
     [local.region_parts[length(local.region_parts) - 1]],
   ))
+
+  # Azure region names carry no direction words to derive from: an explicit
+  # map. A region outside it fails the region_code check (outputs.tf) rather
+  # than half-renaming an environment.
+  azure_region_codes = {
+    westeurope    = "weu", northeurope = "neu", uksouth = "uks", ukwest = "ukw",
+    swedencentral = "sec", germanywestcentral = "gwc", francecentral = "frc",
+    eastus        = "eus", eastus2 = "eus2", westus2 = "wus2", westus3 = "wus3", centralus = "cus",
+  }
+  region_code = local.azure_cloud ? (local.scope == "global" ? null : lookup(local.azure_region_codes, local.scope, null)) : local.aws_region_code
+  # Only checked for a known cloud: an unknown one fails the cloud check alone.
+  region_valid = !local.cloud_valid || local.scope == "global" || local.region_code != null
 
   # <unit>.<instance>.yaml -> instance (peering.eu-west-1.yaml); singletons have none.
   instance = try(regex("^[^.]+\\.(.+)\\.yaml$", basename(var.config_file))[0], null)
@@ -67,11 +95,18 @@ locals {
     { for k, v in local.owner_tags : k => tostring(v) },
   )
 
-  state = {
+  # AWS: the account's S3 bucket. Azure: the environment's own container in
+  # the state storage account (env_id unless the YAML names one).
+  state = local.azure_cloud ? {
+    subscription_id = try(local.config.state.subscription_id, local.config.subscription_id)
+    resource_group  = local.config.state.resource_group
+    storage_account = local.config.state.storage_account
+    container       = try(local.config.state.container, local.env_id)
+    } : local.aws_cloud ? {
     bucket     = local.config.state.bucket
     region     = local.config.state.region
     kms_key_id = try(local.config.state.kms_key_id, null)
-  }
+  } : null
   state_key = "${local.env_id}/${local.scope}/${join(".", compact([var.resource_set, local.instance]))}/terraform.tfstate"
 
   # The platform's network decisions (spec.network), copied by Backstage into
@@ -124,7 +159,7 @@ locals {
 # Common network state of this environment/scope. try()'d all the way
 # down: a destroy of a consumer after core-network is gone must still plan.
 data "terraform_remote_state" "core_network" {
-  count   = var.network ? 1 : 0
+  count   = var.network && local.aws_cloud ? 1 : 0
   backend = "s3"
 
   config = {
@@ -136,9 +171,29 @@ data "terraform_remote_state" "core_network" {
   defaults = {}
 }
 
+# The same read on Azure: the environment's container, with the job's identity.
+data "terraform_remote_state" "core_network_azure" {
+  count   = var.network && local.azure_cloud ? 1 : 0
+  backend = "azurerm"
+
+  config = {
+    subscription_id      = local.state.subscription_id
+    resource_group_name  = local.state.resource_group
+    storage_account_name = local.state.storage_account
+    container_name       = local.state.container
+    key                  = "${local.env_id}/${local.scope}/core-network/terraform.tfstate"
+    use_azuread_auth     = true
+  }
+
+  defaults = {}
+}
+
 locals {
-  core_network_outputs = try(data.terraform_remote_state.core_network[0].outputs, {})
-  networks             = try(local.core_network_outputs.networks, {})
-  vpc_name             = try(local.spec.vpc, local.core_network_outputs.default_vpc_name, null)
-  network              = local.vpc_name == null ? null : try(local.core_network_outputs.networks[local.vpc_name], null)
+  core_network_outputs = try(
+    local.azure_cloud ? data.terraform_remote_state.core_network_azure[0].outputs : data.terraform_remote_state.core_network[0].outputs,
+    {},
+  )
+  networks = try(local.core_network_outputs.networks, {})
+  vpc_name = try(local.spec.vpc, local.core_network_outputs.default_vpc_name, null)
+  network  = local.vpc_name == null ? null : try(local.core_network_outputs.networks[local.vpc_name], null)
 }

@@ -292,6 +292,92 @@ run "region_netmask_inside_segment" {
   expect_failures = [output.platform_network]
 }
 
+# A unit without `cloud` is AWS, exactly as before.
+run "context_defaults_to_aws" {
+  command = plan
+
+  assert {
+    condition     = output.cloud == "aws" && output.azure == null
+    error_message = "no cloud field means aws, with no Azure identity"
+  }
+  assert {
+    condition     = output.account_id == "111111111111" && output.state.bucket == "acme-tfstate-111111111111"
+    error_message = "AWS account and S3 state are unchanged"
+  }
+}
+
+run "azure_outputs" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/azure.yaml"
+  }
+
+  assert {
+    condition     = output.cloud == "azure" && output.region_code == "weu" && output.name_prefix == "research-sandbox-weu"
+    error_message = "Azure regions get their code from the map (westeurope = weu)"
+  }
+  assert {
+    condition     = output.state.container == "research-sandbox" && output.state.storage_account == "acmetfstateweu" && output.state.subscription_id == "00000000-0000-0000-0000-000000000001"
+    error_message = "Azure state: the environment's container (env_id by default) in the state storage account"
+  }
+  assert {
+    condition     = output.account_id == null
+    error_message = "no AWS account on Azure"
+  }
+  assert {
+    condition     = output.azure.client_id == "00000000-0000-0000-0000-0000000000bb" && output.azure.subscription_id == "00000000-0000-0000-0000-000000000001"
+    error_message = "the Azure identity comes from the YAML"
+  }
+  assert {
+    condition     = output.state_key == "research-sandbox/westeurope/core-platform/terraform.tfstate"
+    error_message = "the state key has the same shape on every cloud"
+  }
+}
+
+run "unknown_azure_region_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/azure-unknown-region.yaml"
+  }
+
+  expect_failures = [output.region_code]
+}
+
+run "unknown_cloud_rejected" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/unknown-cloud.yaml"
+  }
+
+  expect_failures = [output.cloud]
+}
+
+# A consumer's destroy after core-network is gone still plans on Azure.
+run "azure_destroy_without_core_network" {
+  command = plan
+
+  variables {
+    config_file = "tests/fixtures/azure.yaml"
+    network     = true
+  }
+
+  # What the azurerm backend returns once core-network's state is gone.
+  override_data {
+    target = data.terraform_remote_state.core_network_azure[0]
+    values = {
+      outputs = {}
+    }
+  }
+
+  assert {
+    condition     = output.networks == {} && output.network == null
+    error_message = "no core-network state means no networks"
+  }
+}
+
 # The job signs in to the unit's own account (Terraform-Role or
 # Terraform-Plan-Role); there is no deploy role to name.
 run "no_role_outputs" {
