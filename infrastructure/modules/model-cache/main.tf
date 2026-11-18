@@ -1,7 +1,7 @@
 # One FSx for Lustre file system per cluster that serves models, linked to the
 # group's weights bucket (model-store): the first read of a file loads it from
 # S3, later reads are served from Lustre. vLLM pods mount it read-only
-# (k8s-installs aws-fsx-csi-driver). Unit file: model-cache.<cluster>.yaml.
+# (phoenix-k8s aws-fsx-csi-driver). Unit file: model-cache.<cluster>.yaml.
 #
 # Lifecycle is tags.LongLive, written by Backstage from the per-tier platform
 # setting: true keeps the warm cache through weekend teardowns (and pays for

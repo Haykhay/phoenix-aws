@@ -223,7 +223,7 @@ np_eks = svc("EKS + Cilium", GX + 60, 600, "eks", COMPUTE, 56)
 res("NAT (independent<br>mode only)", GX + 260, 600, "nat_gateway", NET, 44)
 np_att = res("attachment<br>→ non-production", GX + 60, 730, "transit_gateway_attachment", NET, 44)
 
-box("<b>Cilium</b> (k8s-installs baseline, chained with the VPC CNI)<br>default: own VPC · tooling · DNS · Pod Identity · internet<br>"
+box("<b>Cilium</b> (phoenix-k8s baseline, chained with the VPC CNI)<br>default: own VPC · tooling · DNS · Pod Identity · internet<br>"
     "everything else private is denied until a policy opens it<br>(spec.egress_allow · team CiliumNetworkPolicies, FQDN rules)",
     GX, 880, GW, 110, fill="#FFFFFF", stroke="#545B64")
 text("Teams are not separated by AWS routing: within a segment any VPC can route to any other; Cilium decides.",

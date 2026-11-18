@@ -122,7 +122,7 @@ locals {
       }
     },
   )
-  # Plus the account baseline's Terraform-Role (phoenix-aws-org): k8s-installs
+  # Plus the account baseline's Terraform-Role (phoenix-aws-org): phoenix-k8s
   # applies to the clusters core-platform creates through it.
   default_admin_role_names = toset([
     "DevOps",

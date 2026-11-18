@@ -1,4 +1,4 @@
-# writer: the model-weights job's Pod Identity role (each k8s-installs
+# writer: the model-weights job's Pod Identity role (each phoenix-k8s
 # model-weights unit associates it with its own service account).
 # S3 and KMS are separate policies so the S3 one is fully known at plan time
 # (the key ARN is not) and its scoping can be reviewed in the plan.

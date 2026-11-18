@@ -118,11 +118,11 @@ bs = box("", BX, 110, BW, 560, fill="#F1F5FB", stroke="#1F5FBF")
 brand("", BX + 20, 126, "backstage", 30, tile="#121212")
 text("Backstage — own repo, fronts every cloud", BX + 66, 128, 380, 24, size=15, color="#1F5FBF", bold=True)
 bs_forms = box("<b>Forms</b><br>environment: tier · resource sets → infrastructure units<br>"
-               "workload: type · database · GPU · model → k8s-installs units", BX + 20, 180, BW - 40, 70)
+               "workload: type · database · GPU · model → phoenix-k8s units", BX + 20, 180, BW - 40, 70)
 bs_const = box("<b>Catalog</b><br>account registry (account ID · state bucket) · clusters<br>"
                "components (dependsOn) · workload types · databases · GPUs · models", BX + 20, 264, BW - 40, 70)
 bs_orch = box("<b>Orchestrator</b> (to build)<br>infrastructure: ① core-network → ② core-platform → ③ data-*<br>"
-              "k8s-installs: components in dependsOn order · destroy in reverse · notify when ready",
+              "phoenix-k8s: components in dependsOn order · destroy in reverse · notify when ready",
               BX + 20, 348, BW - 40, 84)
 bs_life = box("<b>Lifecycle</b><br>personal sandbox: torn down Friday evening or when idle<br>"
               "group schedule (manager-approved): up Monday, down Friday<br>LongLive: kept",
@@ -152,7 +152,7 @@ repo = box("<b>Repo: phoenix-aws</b> — one YAML file per unit<br><br>"
            "&nbsp;&nbsp;environments/&lt;tier&gt;/&lt;env_id&gt;/&lt;scope&gt;/&lt;set&gt;.yaml<br>"
            "&nbsp;&nbsp;context · core-network · core-platform · dns<br>"
            "&nbsp;&nbsp;data-rds/-elasticache/-msk · ecr · observability<br><br>"
-           "<b>k8s-installs/</b> (Layer 3)<br>"
+           "<b>phoenix-k8s/</b> (Layer 3)<br>"
            "&nbsp;&nbsp;…/&lt;region&gt;/&lt;cluster&gt;/&lt;component&gt;[.&lt;instance&gt;].yaml<br>"
            "&nbsp;&nbsp;baseline: Karpenter · kyverno · falco · secrets · Grafana<br>"
            "&nbsp;&nbsp;service: Istio · cert-manager · external-dns · Argo CD · Kargo<br>"
@@ -207,7 +207,7 @@ brand("", AX + 432, 578, "nvidia", 22)
 sqs = svc("SQS<br>Karpenter interruption", AX + 530, 590, "sqs", INTEG)
 podid = svc("IAM<br>Pod Identity", AX + 680, 590, "identity_and_access_management", SEC)
 
-incl = box("<b>In-cluster</b> — k8s-installs units, one per component", AX + 100, 690, 680, 130, fill="#FFFFFF", stroke="#147EBA",
+incl = box("<b>In-cluster</b> — phoenix-k8s units, one per component", AX + 100, 690, 680, 130, fill="#FFFFFF", stroke="#147EBA",
            extra="dashed=1;")
 brand("vLLM<br>InferencePool", AX + 130, 724, "vllm", 34)
 brand("NVIDIA DCGM<br>GPU metrics", AX + 230, 724, "nvidia", 34)

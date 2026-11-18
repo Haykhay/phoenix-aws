@@ -1,5 +1,0 @@
-apiVersion: v2
-name: volume
-description: One PersistentVolumeClaim on a cloud-neutral Phoenix storage class
-type: application
-version: 0.1.0

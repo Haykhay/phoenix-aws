@@ -7,28 +7,23 @@ run-name: >-
 
 # One run = one unit = one YAML file, path relative to the repo root:
 #   infrastructure/environments/<tier>/<env_id>/<scope>/<resource-set>.yaml
-#   k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml
 #   networking/environments/<scope>/<unit>[.<instance>].yaml
 #
 # Backstage calls workflow_dispatch with config_file + action, in dependency
-# order (Layer 1: networking units when a region is new; Layer 2: core-network -> core-platform -> data-*; Layer 3: after the
-# cluster's core-platform, prerequisites first), destroying in reverse, and
+# order (Layer 1: networking units when a region is new; Layer 2: core-network
+# -> core-platform -> data-*; Layer 3 is phoenix-k8s's own workflow, after the
+# cluster's core-platform), destroying in reverse, and
 # stops the chain on a failed run. Pull requests plan every changed YAML and
 # test every changed module.
 #
 # Removing a unit is a destroy dispatched by Backstage *before* its YAML is
 # deleted; a deleted YAML on its own plans nothing.
-#
-# k8s-installs units run on the self-hosted runner in the management VPC
-# (EKS endpoints are private); everything else on GitHub-hosted runners.
 
 on:
   pull_request:
     paths:
       - "infrastructure/environments/**.yaml"
       - "infrastructure/modules/**"
-      - "k8s-installs/environments/**.yaml"
-      - "k8s-installs/modules/**"
       - "networking/environments/**.yaml"
       - "networking/modules/**"
   workflow_dispatch:
@@ -73,8 +68,6 @@ jobs:
           CONFIG_FILE: ${{ inputs.config_file }}
           ORCHESTRATION_ID: ${{ inputs.orchestration_id }}
           BASE_REF: ${{ github.base_ref }}
-          REPO: ${{ github.repository }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
@@ -85,31 +78,22 @@ jobs:
           else
             base="origin/$BASE_REF"
             files=$(git diff --name-only --diff-filter=AMR "$base...HEAD" -- \
-              'infrastructure/environments/**.yaml' 'k8s-installs/environments/**.yaml' 'networking/environments/**.yaml')
-            # A fork's pull request never schedules work on the self-hosted
-            # runner (it can reach every cluster). Forks get no AWS credentials
-            # anyway; their infrastructure units fail at login on hosted runners.
-            if [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$REPO" ]; then
-              files=$(grep -v '^k8s-installs/' <<<"$files" || true)
-            fi
-            # <project>/modules/<name>; k8s _boilerplate is documentation, not a module.
-            modules=$(git diff --name-only "$base...HEAD" -- 'infrastructure/modules/' 'k8s-installs/modules/' 'networking/modules/' \
-              | cut -d/ -f1-3 | grep -v '^k8s-installs/modules/_boilerplate$' | sort -u || true)
+              'infrastructure/environments/**.yaml' 'networking/environments/**.yaml')
+            # <project>/modules/<name>
+            modules=$(git diff --name-only "$base...HEAD" -- 'infrastructure/modules/' 'networking/modules/' \
+              | cut -d/ -f1-3 | sort -u || true)
             # Only directories are modules: files beside them (modules/README.md) are docs.
             modules=$(while read -r d; do if [ -d "$d" ]; then printf '%s\n' "$d"; fi; done <<<"$modules")
-            # k8s-installs and networking build on infrastructure: they source
-            # modules/context (k8s also modules/credentials and core-platform's
-            # and dns's outputs). Any infrastructure module change re-tests
-            # every k8s and networking module.
+            # networking builds on infrastructure (it sources modules/context):
+            # any infrastructure module change re-tests every networking module.
+            # phoenix-k8s pins context and credentials to a release tag and
+            # re-tests when it moves to a new one.
             if grep -q '^infrastructure/modules/' <<<"$modules"; then
-              dependents=$(find k8s-installs/modules networking/modules -mindepth 1 -maxdepth 1 -type d ! -name _boilerplate 2>/dev/null | sort || true)
+              dependents=$(find networking/modules -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort || true)
               modules=$(printf '%s\n%s\n' "$modules" "$dependents" | sort -u)
             fi
           fi
-          units=$(printf '%s\n' "$files" | jq -Rnc '[inputs | select(length > 0) | {
-            config_file: .,
-            runner: (if startswith("k8s-installs/") then "[\"self-hosted\",\"phoenix-mgmt\"]" else "\"ubuntu-latest\"" end)
-          }]')
+          units=$(printf '%s\n' "$files" | jq -Rnc '[inputs | select(length > 0)]')
           modules=$(printf '%s\n' "$modules" | jq -Rnc '[inputs | select(length > 0)]')
           echo "units=$units" >> "$GITHUB_OUTPUT"
           echo "modules=$modules" >> "$GITHUB_OUTPUT"
@@ -140,13 +124,13 @@ jobs:
   unit:
     needs: changes
     if: needs.changes.outputs.units != '[]'
-    runs-on: ${{ fromJSON(matrix.unit.runner) }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        unit: ${{ fromJSON(needs.changes.outputs.units) }}
+        config_file: ${{ fromJSON(needs.changes.outputs.units) }}
     concurrency:
-      group: tf-${{ matrix.unit.config_file }}
+      group: tf-${{ matrix.config_file }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -154,7 +138,7 @@ jobs:
       - name: Read unit
         id: unit
         env:
-          FILE: ${{ matrix.unit.config_file }}
+          FILE: ${{ matrix.config_file }}
           ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'plan' }}
         run: |
           set -euo pipefail
@@ -172,18 +156,6 @@ jobs:
               rs="${rest%.yaml}"
               [ "$rs" != context ] && [ "$rs" != credentials ] && [ -d "$project/modules/$rs" ] || err "no resource set $project/modules/$rs"
               state_key="$env_id/$scope/$rs/terraform.tfstate"
-              ;;
-            k8s-installs)
-              # k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml
-              cluster="${rest%%/*}"; file="${rest#*/}"
-              [[ "$rest" == */* && "$file" == *.yaml && "$file" != */* ]] || err "$FILE is not k8s-installs/environments/<tier>/<env_id>/<region>/<cluster>/<component>[.<instance>].yaml"
-              unit="${file%.yaml}"; rs="${unit%%.*}"
-              if [ "$unit" != "$rs" ]; then
-                [[ "${unit#*.}" =~ $ident ]] || err "instance '${unit#*.}' must match $ident"
-              fi
-              [ "$rs" != cluster ] && [ "$rs" != _boilerplate ] && [ -d "$project/modules/$rs" ] || err "no component $project/modules/$rs"
-              [ "$(yq -r '.cluster' "$FILE")" = "$cluster" ] || err "cluster in the YAML ($(yq -r '.cluster' "$FILE")) does not match the path ($cluster)"
-              state_key="$env_id/$scope/k8s/$cluster/$unit/terraform.tfstate"
               ;;
             networking)
               # networking/environments/<scope>/<unit>[.<instance>].yaml, one
@@ -274,9 +246,9 @@ jobs:
       - name: terraform ${{ steps.unit.outputs.action }}
         working-directory: src/${{ steps.unit.outputs.project }}/modules/${{ steps.unit.outputs.resource_set }}
         env:
-          TF_VAR_config_file: ${{ github.workspace }}/${{ matrix.unit.config_file }}
+          TF_VAR_config_file: ${{ github.workspace }}/${{ matrix.config_file }}
           TF_VAR_pipeline_user: ${{ github.actor }}
-          UNIT_FILE: ${{ matrix.unit.config_file }}
+          UNIT_FILE: ${{ matrix.config_file }}
         run: |
           set -o pipefail
           case "${{ steps.unit.outputs.action }}" in

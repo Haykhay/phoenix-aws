@@ -1,10 +1,10 @@
 # AWS side of Karpenter, per cluster that sets `karpenter.enabled`. The
-# controller itself (Helm) lives in k8s-installs' karpenter module, which
+# controller itself (Helm) lives in phoenix-k8s' karpenter module, which
 # reads the role, node role and queue names back from the `clusters` output.
 #
 # Everything the submodule creates stays together here: its controller policy
 # is built from its own queue ARN and node role ARN, so splitting the controller
-# role off into k8s-installs would mean re-deriving those statements by hand.
+# role off into phoenix-k8s would mean re-deriving those statements by hand.
 
 locals {
   karpenter_clusters = {
@@ -29,7 +29,7 @@ locals {
   # capacity reservations, placement groups, node repair (reboot) and instance
   # profile garbage collection. Re-check against
   # website/content/en/<version>/getting-started/getting-started-with-karpenter/cloudformation.yaml
-  # in aws/karpenter-provider-aws whenever k8s-installs bumps the chart.
+  # in aws/karpenter-provider-aws whenever phoenix-k8s bumps the chart.
   karpenter_extra_policy_statements = {
     for name, cluster in local.karpenter_clusters : name => [
       {
@@ -95,7 +95,7 @@ module "karpenter" {
   enable_v1_permissions           = true
   enable_pod_identity             = true
   create_pod_identity_association = true
-  # Must match what k8s-installs' karpenter module deploys into — it reads
+  # Must match what phoenix-k8s' karpenter module deploys into — it reads
   # both back from the `clusters` output rather than assuming them.
   namespace       = try(each.value.karpenter.namespace, "karpenter")
   service_account = try(each.value.karpenter.service_account, "karpenter")

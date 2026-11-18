@@ -78,7 +78,7 @@ run "cluster_in_selected_vpc" {
   }
   assert {
     condition     = contains(keys(output.clusters["1"]), "cluster_certificate_authority_data")
-    error_message = "clusters carries the CA, so k8s-installs can connect without an EKS API call"
+    error_message = "clusters carries the CA, so phoenix-k8s can connect without an EKS API call"
   }
   assert {
     condition     = toset(output.clusters["1"].node_subnet_ids) == toset(["subnet-p1", "subnet-p2", "subnet-p3"])

@@ -1,4 +1,4 @@
-# Read by k8s-installs aws-fsx-csi-driver to bind a static, read-only volume.
+# Read by phoenix-k8s aws-fsx-csi-driver to bind a static, read-only volume.
 
 output "file_system_id" {
   description = "FSx for Lustre file system ID (the CSI volume handle)."

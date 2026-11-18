@@ -1,5 +1,0 @@
-apiVersion: v2
-name: falco-instance
-description: Falco instance CR — applied after falco-artifacts so destroy order is correct
-type: application
-version: 0.5.0
