@@ -1,6 +1,6 @@
 # ADR-0003: Two layers, one repository, one workflow
 
-Status: Accepted · 2026-10-25
+Status: Accepted · 2026-10-25 · Amended 2026-11-18: Layer 3 moved to its own repository, [`phoenix-k8s`](https://github.com/Haykhay/phoenix-k8s), with its own workflow; it reuses `context` and `credentials` from here at a release tag.
 
 ## Context
 

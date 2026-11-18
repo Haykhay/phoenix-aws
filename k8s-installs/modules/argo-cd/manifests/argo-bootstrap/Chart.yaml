@@ -1,5 +1,0 @@
-apiVersion: v2
-name: argo-bootstrap
-description: ArgoCD Cluster Bootstrap Application 
-type: application
-version: 0.1.0

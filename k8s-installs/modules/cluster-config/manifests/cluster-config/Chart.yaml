@@ -1,5 +1,0 @@
-apiVersion: v2
-name: cluster-config
-description: Cluster-wide Kubernetes configuration (StorageClasses, etc.)
-type: application
-version: 0.1.0

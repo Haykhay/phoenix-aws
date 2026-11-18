@@ -1,4 +1,0 @@
-name: ""
-storageClass: phoenix-block
-size: 1Gi
-accessMode: ReadWriteOnce

@@ -4,7 +4,7 @@ FSx for Lustre in front of the group's weights bucket (`model-store`), one per
 cluster that serves models. The first read of a file loads it from S3; every
 later read, restart, rollout and scale-up is served from Lustre, which is what
 keeps a large model's start in minutes. vLLM pods mount it read-only through
-`k8s-installs` `aws-fsx-csi-driver`.
+`phoenix-k8s` `aws-fsx-csi-driver`.
 
 ```text
 environments/<tier>/<env_id>/<region>/model-cache.<cluster>.yaml

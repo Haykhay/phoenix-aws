@@ -102,7 +102,7 @@ Each instance gets a Secrets Manager secret at:
 ```
 
 Consumers read that path rather than being handed credentials — see
-k8s-installs' Keycloak module for an example of the `incluster` vs `rds`
+phoenix-k8s' Keycloak module for an example of the `incluster` vs `rds`
 binding.
 
 ## Running it

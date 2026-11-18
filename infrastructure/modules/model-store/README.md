@@ -1,7 +1,7 @@
 # model-store
 
 The weights bucket for model serving. Every model's weights are copied here
-once, at a pinned version (`k8s-installs` `model-weights.<model>`), and each
+once, at a pinned version (`phoenix-k8s` `model-weights.<model>`), and each
 cluster's FSx for Lustre cache (`model-cache.<cluster>`) loads them from here.
 Pods never download a model from the internet. Backstage tears environments
 down at the weekend; this bucket stays, so a copy is never repeated.

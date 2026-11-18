@@ -36,7 +36,7 @@ environments/<tier>/<env_id>/<scope>/<resource-set>.yaml   one unit per file, wr
 modules/<resource-set>/                                    one plain Terraform root per resource set
 modules/context/                                           shared: identity, naming, tags, state, network lookup
 modules/credentials/                                       shared library: passwords and secrets
-../.github/workflows/terraform.yml (repo root AWS/)          the only pipeline, shared with k8s-installs
+../.github/workflows/terraform.yml (repo root AWS/)          the pipeline for infrastructure and networking
 docs/                                                      design, plan, architecture diagram
 ```
 
@@ -83,7 +83,7 @@ the orchestrator's, from the unit's outputs (`tgw_links`, `delegations`).
 | Resource set | What it builds | Notes |
 |---|---|---|
 | `core-network` | VPCs (CIDR from IPAM), subnets, NAT, endpoints, optional TGW | IPAM only — no literal CIDRs |
-| `core-platform` | EKS clusters, system node group, addons, Karpenter IAM, observability bindings | GPU capacity comes from Karpenter pools in k8s-installs |
+| `core-platform` | EKS clusters, system node group, addons, Karpenter IAM, observability bindings | GPU capacity comes from Karpenter pools in phoenix-k8s |
 | `model-cache` | FSx for Lustre per cluster, lazy-loading the group's `model-store` bucket | per cluster (`model-cache.<cluster>.yaml`); `LongLive` from the tier's setting |
 | `data-rds` | RDS PostgreSQL/MySQL | `eks_clusters` required with several clusters |
 | `data-elasticache` | ElastiCache (Valkey/Redis) | 40-character ID limit checked at plan |
@@ -112,8 +112,8 @@ gone still plans.
 
 ## The workflow
 
-`.github/workflows/terraform.yml` at the repo root (`AWS/`), shared with
-`k8s-installs`. Unit paths are given from the repo root
+`.github/workflows/terraform.yml` at the repo root, shared with
+`networking` (`phoenix-k8s` has its own). Unit paths are given from the repo root
 (`infrastructure/environments/...`):
 
 | Trigger | What runs |
@@ -160,7 +160,7 @@ See [`modules/ecr`](modules/ecr/README.md).
 - Accounts, state buckets and the baseline roles in every account (`phoenix-aws-org`; ADR-0013).
 - Backstage: forms, constants, ordering, schedules, idle detection, approvals.
 - The central ECR hub and the Artifactory sync.
-- Everything inside the clusters: [`../k8s-installs`](../k8s-installs/README.md) (Grafana stack, vLLM, Langfuse, GPU operator, ...).
+- Everything inside the clusters: [`phoenix-k8s`](https://github.com/Haykhay/phoenix-k8s) (Grafana stack, vLLM, Langfuse, GPU operator, ...).
 - Networking foundations: IPAM pools, transit gateways (to be redesigned).
 
 ## Running locally

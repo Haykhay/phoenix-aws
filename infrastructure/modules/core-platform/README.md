@@ -367,4 +367,4 @@ Plus `resource_summary`, for the pipeline's summary.
 
 ### Removing it
 
-Used by: every k8s-installs component (through `modules/cluster`), data-rds, data-elasticache, data-msk. Destroy those first.
+Used by: every phoenix-k8s component (through `modules/cluster`), data-rds, data-elasticache, data-msk. Destroy those first.

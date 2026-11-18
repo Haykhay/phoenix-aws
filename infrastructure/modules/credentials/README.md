@@ -2,7 +2,7 @@
 
 One implementation of password generation for every backing service, managed
 and in-cluster, shared by Layer 2 (`infrastructure`) and Layer 3
-(`k8s-installs`).
+(`phoenix-k8s`).
 
 Unlike every other module in this repo, this is **not a resource set**. No
 YAML unit ever names it and the workflow never runs it on its own. It is a

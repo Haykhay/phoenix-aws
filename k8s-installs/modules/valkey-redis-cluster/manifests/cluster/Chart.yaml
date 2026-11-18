@@ -1,5 +1,0 @@
-apiVersion: v2
-name: valkey-redis-cluster
-description: Valkey Redis Cluster with ESO-managed user secrets
-type: application
-version: 0.1.0
