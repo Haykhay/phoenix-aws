@@ -120,21 +120,6 @@ output "networks" {
   value       = local.networks
 }
 
-output "role_name" {
-  description = "Name of the deploy role in every account (deploy_role_name); ARNs are arn:aws:iam::<account id>:role/<role_name>."
-  value       = local.role_name
-}
-
-output "deploy_role_arn" {
-  description = "The deploy role in the unit's account: every provider and state read assumes it."
-  value       = local.deploy_role_arn
-
-  precondition {
-    condition     = local.role_name_valid
-    error_message = "deploy_role_name is required (Backstage writes it from the account entity's phoenix/deploy-role-name) and must be an IAM role name: 1-64 of letters, digits and +=,.@_-."
-  }
-}
-
 output "pipeline_user" {
   description = "Who ran the pipeline (GITHUB_ACTOR)."
   value       = var.pipeline_user

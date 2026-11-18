@@ -122,13 +122,13 @@ locals {
       }
     },
   )
-  # Plus the pipeline's deploy role (deploy_role_name): k8s-installs reaches
-  # the clusters core-platform creates through it.
+  # Plus the account baseline's Terraform-Role (phoenix-aws-org): k8s-installs
+  # applies to the clusters core-platform creates through it.
   default_admin_role_names = toset([
     "DevOps",
     "DevOpsLead",
     "SolutionArchitect",
-    module.context.role_name,
+    "Terraform-Role",
   ])
 
   ownership_tags = {
@@ -178,6 +178,22 @@ locals {
 
   access_entries = {
     for name, cluster in local.clusters : name => merge(
+      # Pull-request plans (Terraform-Plan-Role) read every object, Helm's
+      # release secrets too, and change none (AmazonEKSAdminViewPolicy).
+      # First, so a cluster's own admin/view settings can override it.
+      {
+        "Terraform-Plan-Role" = {
+          principal_arn = "arn:aws:iam::${module.context.account_id}:role/Terraform-Plan-Role"
+          policy_associations = {
+            view = {
+              policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminViewPolicy"
+              access_scope = {
+                type = "cluster"
+              }
+            }
+          }
+        }
+      },
       {
         for role_name in local.admin_role_names[name] :
         role_name => {

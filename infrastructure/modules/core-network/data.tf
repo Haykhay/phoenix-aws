@@ -13,11 +13,8 @@ locals {
 
   # Networking account: owns the transit gateways and keeps their facts in its
   # own remote state. From the YAML so no account ID is hardcoded here.
-  network_settings = try(local.config.providers.network, {})
-  # Only the account ID is configured; the role is its deploy role
-  # (module.context.role_name).
+  network_settings   = try(local.config.providers.network, {})
   network_account_id = try(tostring(local.network_settings.account_id), null)
-  network_role_arn   = local.network_account_id == null ? null : "arn:aws:iam::${local.network_account_id}:role/${module.context.role_name}"
   network_configured = local.network_account_id != null && try(local.network_settings.state_bucket, null) != null && local.platform_network != null
   network_state = {
     bucket     = try(local.network_settings.state_bucket, null)
@@ -51,9 +48,6 @@ data "terraform_remote_state" "region" {
     region     = local.network_state.region
     encrypt    = true
     kms_key_id = local.network_state.kms_key_id
-    assume_role = {
-      role_arn = local.network_role_arn
-    }
   }
 
   defaults = {}

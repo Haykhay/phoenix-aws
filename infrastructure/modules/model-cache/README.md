@@ -71,7 +71,7 @@ core-network is `LongLive` too.
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

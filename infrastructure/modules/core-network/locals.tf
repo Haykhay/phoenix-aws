@@ -213,14 +213,6 @@ locals {
     shared           = ["production", "non-production", "shared"]
   }
 
-  tgw_propagations = {
-    for pair in flatten([
-      for vpc_name, vpc in local.tgw_vpcs : [
-        for table in local.propagated_tables[vpc.segment] : { key = "${vpc_name}/${table}", vpc_name = vpc_name, table = table }
-      ]
-    ]) : pair.key => pair
-  }
-
   # Each VPC's private subnets are created as one list, data subnets first. Split
   # it back into its two roles so downstream resource sets bind to the right one
   # (EKS on platform, RDS/cache/MSK on data).

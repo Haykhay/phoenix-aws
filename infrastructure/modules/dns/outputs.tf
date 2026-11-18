@@ -34,3 +34,14 @@ output "internal_zone_name" {
   description = "With one zone only: internal zone name."
   value       = local.single_zone_key != null ? local.zones[local.single_zone_key].internal_zone_name : null
 }
+
+output "delegations" {
+  description = "Per delegated public zone: the NS record to add in its parent zone (another account's). The orchestrator writes it; this unit stays in its own account."
+  value = {
+    for key, zone in local.zones_delegate : key => {
+      parent_zone_name = zone.parent_zone_name
+      name             = zone.public_zone_name
+      name_servers     = local.zone_name_servers[key].public
+    }
+  }
+}

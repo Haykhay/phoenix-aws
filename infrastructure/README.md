@@ -13,7 +13,7 @@ helper scripts.
 1. A person in a **group** (every account belongs to one group) fills in a
    Backstage form. If the group has no account yet, Backstage first runs the
    account-vending workflow (StackSets, separate repo), which records the new
-   account, its state bucket and its deploy role in DynamoDB.
+   account and its state bucket in DynamoDB.
 2. Backstage opens a PR adding one YAML file per unit, with the environment's
    constants (organisation, group, account ID, state bucket) read from DynamoDB.
 3. The PR plans each changed YAML. Sandbox PRs are merged by Backstage itself;
@@ -70,13 +70,13 @@ spec:                              # the resource set's own settings
     "1": { ... }
 ```
 
-**Two roles, named by Backstage; only account IDs vary** (ADR-0012). The
-pipeline signs in as the unit's OIDC role (`oidc_role_arn`) and assumes the
-deploy role (`deploy_role_name`, one name in every workload account) in each
-account it touches: the backend, every provider and every state read assume
-`arn:aws:iam::<account_id>:role/<deploy_role_name>`. Cross-account references in
-`spec` are just account IDs (`spec.providers.management.account_id`,
-`spec.providers.network.account_id`).
+**One account per job, the account baseline's roles** (ADR-0013). The
+pipeline signs in over GitHub OIDC to the unit's own account: `Terraform-Plan-Role`
+for pull-request plans, `Terraform-Role` for apply and destroy from `main`
+(both from `phoenix-aws-org`). The backend, every provider and every state read
+use those credentials as they are. A unit only writes into its own account;
+steps in another account (transit gateway links, parent-zone delegation) are
+the orchestrator's, from the unit's outputs (`tgw_links`, `delegations`).
 
 ## Resource sets
 
@@ -124,7 +124,7 @@ gone still plans.
 
 Per unit it checks that the path matches the YAML (tier, env_id, region),
 checks out the modules at `module_ref`, signs in as the unit's OIDC role over
-GitHub OIDC, runs `terraform init` with the S3 backend (assuming the deploy role)
+GitHub OIDC, runs `terraform init` with the S3 backend
 from the YAML (key `<env_id>/<scope>/<resource-set>/terraform.tfstate`,
 lockfile, encryption) and runs the action. One run per unit at a time
 (`concurrency`). Removing a unit is a `destroy` Backstage dispatches before it
@@ -157,7 +157,7 @@ See [`modules/ecr`](modules/ecr/README.md).
 
 ## Lives elsewhere
 
-- Accounts, state buckets, the OIDC role and the deploy role in every account (ADR-0012).
+- Accounts, state buckets and the baseline roles in every account (`phoenix-aws-org`; ADR-0013).
 - Backstage: forms, constants, ordering, schedules, idle detection, approvals.
 - The central ECR hub and the Artifactory sync.
 - Everything inside the clusters: [`../k8s-installs`](../k8s-installs/README.md) (Grafana stack, vLLM, Langfuse, GPU operator, ...).

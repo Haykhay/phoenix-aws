@@ -223,8 +223,8 @@ resource "aws_vpc_endpoint" "interface" {
 }
 
 # The region unit shares its transit gateway with the organisation and
-# auto-accepts attachments; association and propagation are made here, from
-# the networking account.
+# auto-accepts attachments. Association and propagation belong to the
+# networking account: the orchestrator makes them from the tgw_links output.
 resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
   for_each = local.tgw_vpcs
 
@@ -245,22 +245,6 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
   })
 }
 
-resource "aws_ec2_transit_gateway_route_table_association" "this" {
-  provider = aws.network
-  for_each = local.tgw_vpcs
-
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.this[each.key].id
-  transit_gateway_route_table_id = local.region_state.route_table_ids[each.value.segment]
-}
-
-resource "aws_ec2_transit_gateway_route_table_propagation" "this" {
-  provider = aws.network
-  for_each = local.tgw_propagations
-
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.this[each.value.vpc_name].id
-  transit_gateway_route_table_id = local.region_state.route_table_ids[each.value.table]
-}
-
 resource "aws_route" "tgw_routes" {
   for_each = local.tgw_routes
 
@@ -268,11 +252,7 @@ resource "aws_route" "tgw_routes" {
   destination_cidr_block = each.value.cidr
   transit_gateway_id     = local.tgw_id
 
-  depends_on = [
-    aws_ec2_transit_gateway_vpc_attachment.this,
-    aws_ec2_transit_gateway_route_table_association.this,
-    aws_ec2_transit_gateway_route_table_propagation.this
-  ]
+  depends_on = [aws_ec2_transit_gateway_vpc_attachment.this]
 }
 
 resource "aws_route53_resolver_rule_association" "shared" {

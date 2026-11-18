@@ -3,7 +3,6 @@ group: research
 environment: sandbox
 tier: sandbox
 account_id: "111111111111"
-deploy_role_name: deploy-role
 module_ref: main
 state:
   bucket: acme-tfstate-111111111111
@@ -13,9 +12,6 @@ tags:
   Reason: model evaluation
   LongLive: false
 spec:
-  providers:
-    management:
-      account_id: "444444444444"
   zones:
     zone-1:
       public_zone_name: research.example.com

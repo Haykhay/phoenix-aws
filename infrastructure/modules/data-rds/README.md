@@ -111,14 +111,14 @@ binding.
 
 **Needs:**
 
-- The group's AWS account, its deploy role (`deploy_role_name`) and its state bucket.
+- The group's AWS account (signed in as its `Terraform-Role`; ADR-0013) and its state bucket.
 - `core-network` (subnets; the plan fails without it).
 - `core-platform`, so the clusters' node security group may connect (`eks_clusters` names which, when there are several).
 
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15.
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Runs on GitHub-hosted runners: it talks to AWS APIs only.
 
 ### The unit file

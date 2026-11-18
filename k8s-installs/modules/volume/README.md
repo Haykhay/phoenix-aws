@@ -46,7 +46,7 @@ Backstage writes it from the workload form's optional **Storage type**,
 **Access** (the workflow has all of this; locally you need it too):
 
 - Terraform ≥ 1.15 and the `aws` CLI: the helm and kubernetes providers fetch an EKS token per call (`aws eks get-token`).
-- Credentials that can assume the unit's deploy role (`deploy_role_name`) in its account, and the account's state bucket: the backend, providers and state reads all assume that role.
+- Credentials for the unit's own account (`Terraform-Role`, or `Terraform-Plan-Role` for a plan; ADR-0013) and its state bucket: the backend, providers and state reads use them as they are.
 - Network reach to the cluster's **private** API endpoint: in the pipeline that is the `phoenix-mgmt` self-hosted runner in the management VPC.
 
 ### The unit file

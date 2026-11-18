@@ -30,12 +30,9 @@ module "context" {
 | `tags` | yes | `owner.team` and `Reason` required; `LongLive` boolean |
 | `spec` | no | the resource set's own settings |
 
-The deploy role is named in the unit (`deploy_role_name`, written by Backstage
-from the account registry; required): one name in every workload account, so a
-cross-account reference is just an account ID and the ARN is
-`arn:aws:iam::<account id>:role/<deploy_role_name>` (ADR-0012). The plan fails
-if it is missing or not an IAM role name. `oidc_role_arn`, the role the
-pipeline signs in as, is read by the workflow, not here.
+The unit names no role: the workflow signs in to the unit's account as
+`Terraform-Role` (or `Terraform-Plan-Role` for a plan), and the providers and
+state reads use those credentials as they are (ADR-0013).
 
 ## Outputs
 
@@ -50,8 +47,6 @@ pipeline signs in as, is read by the workflow, not here.
 | `tags` | `Project=Phoenix`, `Organisation`, `Group`, `Requester`, `Environment`, `Tier`, `Scope`, `Region`, `ResourceSet`, `ManagedBy`, plus YAML `tags` |
 | `network` | the selected VPC from core-network's `networks` output, or `null` |
 | `spec`, `config` | the YAML `spec`, the whole YAML |
-| `role_name` | `deploy_role_name`: the deploy role's name in every account |
-| `deploy_role_arn` | the deploy role in the unit's account; the backend, providers and state reads assume it |
 | `organisation`, `group`, `requester`, `environment`, `tier`, `account_id`, `pipeline_user` | as given |
 
 `network` binds to `spec.vpc` when set, else core-network's `default_vpc_name`.
